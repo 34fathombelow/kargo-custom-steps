@@ -33,7 +33,9 @@ while to pull it.
 
 | Key | Type | Description |
 |---|---|---|
-| `blocked` | bool | Whether vulnerabilities at the configured severities were found |
+| `blocked` | bool | Whether the promotion is blocked: vulnerabilities at the configured severities were found, or the scan could not run |
+| `scanned` | bool | `false` when the scan could not run at all (e.g. the registry refused the pull); see `error` |
+| `error` | string | Only when `scanned` is `false`: why |
 | `image` | string | The image that was scanned |
 | `total` | int | Number of distinct vulnerabilities found |
 | `counts` | object | Count per severity, e.g. `{"CRITICAL": 3}` |
@@ -68,8 +70,9 @@ the same output in the Kargo UI. Long lists and strings are trimmed here.
   "blocked": false,
   "counts": {},
   "dbUpdatedAt": "2026-10-16T01:13:54.947090392Z",
-  "image": "public.ecr.aws/docker/library/alpine:3.24.2",
+  "image": "mirror.gcr.io/library/alpine:3.24.2",
   "links": [],
+  "scanned": true,
   "total": 0,
   "truncated": false,
   "vulnerabilities": []
@@ -85,7 +88,7 @@ the same output in the Kargo UI. Long lists and strings are trimmed here.
     "CRITICAL": 4
   },
   "dbUpdatedAt": "2026-10-16T01:13:54.947090392Z",
-  "image": "public.ecr.aws/docker/library/alpine:3.14.0",
+  "image": "mirror.gcr.io/library/alpine:3.14.0",
   "links": [
     {
       "label": "CVE-2021-36159",
@@ -103,6 +106,7 @@ the same output in the Kargo UI. Long lists and strings are trimmed here.
       "url": "https://avd.aquasec.com/nvd/cve-2022-37434"
     }
   ],
+  "scanned": true,
   "total": 4,
   "truncated": false,
   "vulnerabilities": [
@@ -138,7 +142,7 @@ the same output in the Kargo UI. Long lists and strings are trimmed here.
 The promotion stops with this message:
 
 ```text
-Step failed (stderr: Promotion blocked: 4 CRITICAL vulnerabilities in public.ecr.aws/docker/library/alpine:3.14.0: CVE-2021-36159 (apk-tools), CVE-2021-3711 (libcrypto1.1), CVE-2021-3711 (libssl1.1), CVE-2022-37434 (zlib)
+Step failed (stderr: Promotion blocked: 4 CRITICAL vulnerabilities in mirror.gcr.io/library/alpine:3.14.0: CVE-2021-36159 (apk-tools), CVE-2021-3711 (libcrypto1.1), CVE-2021-3711 (libssl1.1), CVE-2022-37434 (zlib)
 )
 
 ```

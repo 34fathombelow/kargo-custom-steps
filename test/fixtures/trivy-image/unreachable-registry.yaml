@@ -1,0 +1,13 @@
+description: when the scan cannot run (here, a registry that does not exist), the promotion is blocked and the output says why
+config:
+  image: registry.invalid/example/app:1.0.0
+expect:
+  status: Failed
+  output:
+    blocked: true
+    scanned: false
+    image: registry.invalid/example/app:1.0.0
+  outputKeys:
+  - error
+  messageContains:
+  - "could not scan registry.invalid/example/app:1.0.0"

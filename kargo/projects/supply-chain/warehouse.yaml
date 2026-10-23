@@ -4,7 +4,7 @@
 #   nginx 1.20.0    - from 2021; many CRITICAL vulnerabilities      -> trivy-blocked
 #   cosign v3.1.3   - keyless-signed by the Sigstore project       -> cosign-verified
 #   guestbook 0.0.2 - not signed                                    -> cosign-unsigned
-# Docker Hub images come from the public.ecr.aws mirror to avoid rate limits.
+# Docker Hub images come from Google's mirror (mirror.gcr.io) to avoid anonymous pull limits.
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Warehouse
 metadata:
@@ -17,12 +17,12 @@ spec:
   interval: 5m0s
   subscriptions:
   - image:
-      repoURL: public.ecr.aws/docker/library/alpine
+      repoURL: mirror.gcr.io/library/alpine
       imageSelectionStrategy: SemVer
       constraint: "3.24.2"
       discoveryLimit: 1
   - image:
-      repoURL: public.ecr.aws/docker/library/nginx
+      repoURL: mirror.gcr.io/library/nginx
       imageSelectionStrategy: SemVer
       constraint: "1.20.0"
       discoveryLimit: 1

@@ -31,7 +31,7 @@ spec:
           name: trivy-image
         vars:
         - name: imageRepo
-          value: public.ecr.aws/docker/library/alpine
+          value: mirror.gcr.io/library/alpine
 ---
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
@@ -57,7 +57,7 @@ spec:
           name: trivy-image
         vars:
         - name: imageRepo
-          value: public.ecr.aws/docker/library/nginx
+          value: mirror.gcr.io/library/nginx
 ---
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage

@@ -52,7 +52,12 @@ spec:
     SCAN_PASSWORD="$(jq -j . <<<"$SCAN_PASSWORD")"
     report=/tmp/trivy-report.json
     out=/tmp/trivy-image.json
-    fail() { echo "trivy-image: $*" >&2; exit 1; }
+    # Every failure still records why, so a blocked promotion shows the reason in its output
+    # (e.g. the registry refused the pull), not just a missing output.
+    fail() {
+      jq -n --arg e "$*" --arg img "${SCAN_IMAGE:-}" '{blocked: true, scanned: false, image: $img, error: $e}' > "$out"
+      echo "trivy-image: $*" >&2; exit 1
+    }
     trap 'echo "trivy-image: unexpected error on line $LINENO" >&2' ERR
 
     [ -n "$SCAN_IMAGE" ] || fail "config.image is required (e.g. the image from Freight, pinned by digest)"
@@ -82,6 +87,7 @@ spec:
         | sort_by(.Severity, .VulnerabilityID)) as $v
       | {
           blocked: ($v | length > 0),
+          scanned: true,
           image: $image,
           total: ($v | length),
           counts: ($v | group_by(.Severity) | map({key: .[0].Severity, value: length}) | from_entries),
