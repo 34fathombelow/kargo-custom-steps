@@ -108,7 +108,9 @@ Demo project `custom-steps-manifest-quality` ([kargo/projects/manifest-quality](
 
 | Stage | What it does | Expected |
 |---|---|---|
-| `cluster-version-live` | Asks Argo CD for the agent cluster's version, then runs `deprecated-apis` against it on manifests with an `autoscaling/v2beta2` HPA | Blocked on any supported Kubernetes version (the API was removed in 1.26). The `cluster` step's output shows the version it found |
+| `cluster-version-lookup` | Only runs `cluster-version` | Passes. The `cluster` step's output shows the agent cluster's version |
+| `cluster-version-pass` | Looks up the version, then runs `deprecated-apis` against it on manifests that use only current APIs | Passes |
+| `cluster-version-blocked` | Looks up the version, then runs `deprecated-apis` against it on manifests with an `autoscaling/v2beta2` HPA | Blocked on any supported Kubernetes version (the API was removed in 1.26) |
 
 ## Notes
 

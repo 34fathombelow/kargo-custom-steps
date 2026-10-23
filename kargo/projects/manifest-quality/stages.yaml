@@ -1,19 +1,39 @@
 # Stages for the manifest-quality demo. Names say what to expect:
 #   green = promotion should succeed, red = promotion should be blocked.
 #
-# deprecated-apis (custom step), same manifests, different target clusters:
-#   k8s-1-25   the v2beta2 HPA is deprecated but still served  -> passes
-#   k8s-1-33   the v2beta2 HPA was removed in 1.26             -> blocked
-#
-# cluster-version + deprecated-apis, version looked up from the live cluster:
-#   cluster-version-live   asks Argo CD for the agent cluster's version, then checks
-#                          the same manifests against it. Every supported
-#                          Kubernetes version is newer than 1.25, so this is
-#                          blocked, and its output shows the cluster's version.
+# cluster-version looks up the agent cluster's Kubernetes version from Argo CD;
+# deprecated-apis then checks manifests against it:
+#   cluster-version-lookup   only looks up the version; the step output shows it  -> passes
+#   cluster-version-pass     current manifests                                    -> passes
+#   cluster-version-blocked  an autoscaling/v2beta2 HPA (removed in 1.26, older
+#                            than any supported cluster)                          -> blocked
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
 metadata:
-  name: k8s-1-25
+  name: cluster-version-lookup
+  namespace: custom-steps-manifest-quality
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: green
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: guestbook
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - uses: cluster-version
+        as: cluster
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: cluster-version-pass
   namespace: custom-steps-manifest-quality
   labels:
     kargo.akuity.io/shard: custom-steps
@@ -33,13 +53,13 @@ spec:
       - task:
           name: deprecated-apis
         vars:
-        - name: k8sVersion
-          value: "1.25"
+        - name: manifests
+          value: clean
 ---
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
 metadata:
-  name: k8s-1-33
+  name: cluster-version-blocked
   namespace: custom-steps-manifest-quality
   labels:
     kargo.akuity.io/shard: custom-steps
@@ -59,28 +79,5 @@ spec:
       - task:
           name: deprecated-apis
         vars:
-        - name: k8sVersion
-          value: "1.33"
----
-apiVersion: kargo.akuity.io/v1alpha1
-kind: Stage
-metadata:
-  name: cluster-version-live
-  namespace: custom-steps-manifest-quality
-  labels:
-    kargo.akuity.io/shard: custom-steps
-  annotations:
-    kargo.akuity.io/color: red
-spec:
-  shard: custom-steps
-  requestedFreight:
-  - origin:
-      kind: Warehouse
-      name: guestbook
-    sources:
-      direct: true
-  promotionTemplate:
-    spec:
-      steps:
-      - task:
-          name: cluster-version
+        - name: manifests
+          value: manifests

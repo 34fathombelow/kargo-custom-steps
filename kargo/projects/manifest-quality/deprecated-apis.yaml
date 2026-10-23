@@ -1,7 +1,10 @@
-# Checks the manifests about to be deployed against the target cluster's
-# Kubernetes version. In real use the manifests come from helm-template or
-# kustomize-build; the demo uses static manifests from demo-fixtures/ that
-# include an autoscaling/v2beta2 HorizontalPodAutoscaler (removed in 1.26).
+# Checks manifests for deprecated and removed APIs (deprecated-apis custom step)
+# against the Kubernetes version the cluster actually runs, looked up first by the
+# cluster-version custom step, so nobody keeps a version number in the Stage.
+#
+# The version comes from the Argo CD agent that runs next to the Kargo agent
+# (same namespace, on the custom-steps agent cluster), which reports the one
+# cluster it manages, so the step needs no config here.
 apiVersion: kargo.akuity.io/v1alpha1
 kind: PromotionTask
 metadata:
@@ -11,8 +14,10 @@ spec:
   vars:
   - name: repoURL
     value: https://github.com/34fathombelow/kargo-custom-steps.git
-  - name: k8sVersion
-    value: "1.33"
+  # Which demo manifests to check: `clean` (current APIs only) or `manifests`
+  # (includes an autoscaling/v2beta2 HPA, removed in Kubernetes 1.26).
+  - name: manifests
+    value: manifests
   steps:
   - uses: git-clone
     config:
@@ -20,8 +25,11 @@ spec:
       checkout:
       - branch: main
         path: ./src
+  - uses: cluster-version
+    as: cluster
   - uses: deprecated-apis
     as: apis
     config:
-      path: ./src/demo-fixtures/deprecated-apis/manifests
-      k8sVersion: ${{ quote(vars.k8sVersion) }}
+      path: ./src/demo-fixtures/deprecated-apis/${{ vars.manifests }}
+      # `version` is vX.Y.Z (e.g. v1.33.4), which the template engine keeps as a string.
+      k8sVersion: ${{ task.outputs['cluster'].version }}

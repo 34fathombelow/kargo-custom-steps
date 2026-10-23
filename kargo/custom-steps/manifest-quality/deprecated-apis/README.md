@@ -143,15 +143,13 @@ Step failed (stdout: REMOVED     HorizontalPodAutoscaler guestbook uses autoscal
 
 ## Try it
 
-Demo project `custom-steps-manifest-quality` ([kargo/projects/manifest-quality](../../../projects/manifest-quality)) scans
-[`demo-fixtures/deprecated-apis/manifests`](../../../../demo-fixtures/deprecated-apis/manifests), which contains an
-`autoscaling/v2beta2` HorizontalPodAutoscaler (deprecated in 1.23, removed in 1.26):
+Demo project `custom-steps-manifest-quality` ([kargo/projects/manifest-quality](../../../projects/manifest-quality)) runs
+this step after [`cluster-version`](../cluster-version), so it checks against the version the agent cluster actually runs:
 
-| Stage | `k8sVersion` | Expected |
+| Stage | Manifests | Expected |
 |---|---|---|
-| `k8s-1-25` | `1.25` | Promotion succeeds; output `counts: {removed: 0, deprecated: 1}` |
-| `k8s-1-33` | `1.33` | Promotion fails: `Promotion blocked: 1 removed and 0 deprecated API(s) for Kubernetes v1.33.0` |
-| `cluster-version-live` | looked up from the agent cluster by [`cluster-version`](../cluster-version) | Blocked on any supported Kubernetes version (newer than 1.25) |
+| `cluster-version-pass` | [`demo-fixtures/deprecated-apis/clean`](../../../../demo-fixtures/deprecated-apis/clean): current APIs only | Promotion succeeds |
+| `cluster-version-blocked` | [`demo-fixtures/deprecated-apis/manifests`](../../../../demo-fixtures/deprecated-apis/manifests): an `autoscaling/v2beta2` HorizontalPodAutoscaler (deprecated in 1.23, removed in 1.26) | Promotion fails: `Promotion blocked: 1 removed and 0 deprecated API(s) for Kubernetes v1.35.5` (your cluster's version) |
 
 ## Notes
 
