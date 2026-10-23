@@ -8,7 +8,9 @@
 //   - every CustomPromotionStep uses an image this repo builds, at the tag its
 //     Dockerfile declares, and never templates ${{ }} into a script body
 //   - every `uses:` names a built-in step or a step defined in this repo, and
-//     every `task:` names a PromotionTask in the same project
+//     every `task:` names a PromotionTask in the same project and sets every
+//     var that task leaves empty (Kargo treats an empty default as required,
+//     and rejects the Promotion if the Stage doesn't set a non-empty value)
 //   - every step has a README and at least two test fixtures
 //   - no file tells anyone to run kubectl or the kargo CLI: everything is GitOps
 //
@@ -221,10 +223,19 @@ func (l *linter) checkStep(o object) {
 
 func (l *linter) checkProject(dir string, objs []object, customSteps map[string]bool) {
 	ns := nsPrefix + dir
-	tasks := map[string]bool{}
+	// PromotionTask name -> the vars it declares without a default.
+	tasks := map[string][]string{}
 	for _, o := range objs {
 		if o.kind() == "PromotionTask" {
-			tasks[o.name()] = true
+			required := []string{}
+			vars, _ := get(o.doc, "spec", "vars").([]any)
+			for _, v := range vars {
+				vm, _ := v.(map[string]any)
+				if val, _ := vm["value"].(string); val == "" {
+					required = append(required, str(vm, "name"))
+				}
+			}
+			tasks[o.name()] = required
 		}
 	}
 	var sawProject bool
@@ -279,7 +290,7 @@ func (l *linter) checkProject(dir string, objs []object, customSteps map[string]
 
 // checkStepRefs validates `uses:` and `task:` references in PromotionTasks
 // and Stage promotion templates.
-func (l *linter) checkStepRefs(o object, customSteps, tasks map[string]bool) {
+func (l *linter) checkStepRefs(o object, customSteps map[string]bool, tasks map[string][]string) {
 	var steps []any
 	switch o.kind() {
 	case "PromotionTask":
@@ -294,8 +305,26 @@ func (l *linter) checkStepRefs(o object, customSteps, tasks map[string]bool) {
 		}
 		if task, ok := m["task"].(map[string]any); ok {
 			name, _ := task["name"].(string)
-			if kind, _ := task["kind"].(string); kind != "ClusterPromotionTask" && !tasks[name] {
+			if kind, _ := task["kind"].(string); kind == "ClusterPromotionTask" {
+				continue
+			}
+			required, ok := tasks[name]
+			if !ok {
 				l.errorf(o.file, "%s/%s references PromotionTask %q, which is not in this project", o.kind(), o.name(), name)
+				continue
+			}
+			set := map[string]bool{}
+			vars, _ := m["vars"].([]any)
+			for _, v := range vars {
+				vm, _ := v.(map[string]any)
+				if val, _ := vm["value"].(string); val != "" {
+					set[str(vm, "name")] = true
+				}
+			}
+			for _, r := range required {
+				if !set[r] {
+					l.errorf(o.file, "%s/%s runs PromotionTask %q without a non-empty value for its var %q (Kargo treats an empty default as required)", o.kind(), o.name(), name, r)
+				}
 			}
 		}
 	}
