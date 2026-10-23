@@ -53,6 +53,10 @@ test-services-down: ## Remove the fixture services
 	test/fixtures/flyway-migrate/test-db.sh down
 	test/fixtures/cluster-version/fake-api.sh down
 
+.PHONY: step-images
+step-images: ## Refresh the "Image" section of every step README from its Dockerfile
+	scripts/step-images.sh
+
 .PHONY: lint
 lint: ## Check kargo/ and the step conventions
 	go -C test run ./cmd/lint -repo $(CURDIR)

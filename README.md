@@ -714,6 +714,7 @@ Ideas for custom steps that would fit here, by group. Contributions welcome: see
 | rendering | `helmfile-template` | Render a [Helmfile](https://helmfile.readthedocs.io) (several releases and environments) with `helmfile template` |
 | rendering | `envsubst-render` | Render templates with [gomplate](https://gomplate.ca) or `envsubst` |
 | rendering | `sops-decrypt` | Decrypt [SOPS](https://getsops.io) files (age or KMS) during rendering |
+| rendering | `dockerfile-update` | Set a Dockerfile's `ARG` defaults and `FROM` tags/digests from Freight (e.g. a new base image), in the workdir. Kargo's `yaml-update` and image steps don't handle Dockerfiles. The output shows the diff |
 | release-insight | `sentry-release` | Create a [Sentry](https://sentry.io) release and associate its commits with `sentry-cli` |
 
 Before adding one, check that Kargo doesn't already do it (see [Before you write a custom step](#before-you-write-a-custom-step)).
@@ -725,5 +726,6 @@ Before adding one, check that Kargo doesn't already do it (see [Before you write
    [kyverno-apply](kargo/custom-steps/policy/kyverno-apply/README.md)'s structure, including **Prerequisites**).
 3. Use an image from `docker/`, or add `docker/<tool>/Dockerfile` with `ARG <TOOL>_VERSION=<version>`.
 4. Add fixtures in `test/fixtures/<step>/`, at least one passing and one failing.
+   Run `make step-images` to add the README's generated "Image" section (the Dockerfile the step runs in).
 5. Add a PromotionTask and Stages to `kargo/projects/<group>/`.
 6. `make check`.

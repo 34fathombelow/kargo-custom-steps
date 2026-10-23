@@ -11,7 +11,8 @@
 //     every `task:` names a PromotionTask in the same project and sets every
 //     var that task leaves empty (Kargo treats an empty default as required,
 //     and rejects the Promotion if the Stage doesn't set a non-empty value)
-//   - every step has a README and at least two test fixtures
+//   - every step has a README and at least two test fixtures, and the README's
+//     generated "Image" section matches the step's image and its Dockerfile
 //   - no file tells anyone to run kubectl or the kargo CLI: everything is GitOps
 //
 // Usage: lint -repo <repo root>
@@ -212,12 +213,37 @@ func (l *linter) checkStep(o object) {
 		}
 	}
 	dir := filepath.Dir(o.file)
-	if _, err := os.Stat(filepath.Join(dir, "README.md")); err != nil {
+	if readme, err := os.ReadFile(filepath.Join(dir, "README.md")); err != nil {
 		l.errorf(o.file, "missing README.md next to the step")
+	} else {
+		l.checkImageSection(filepath.Join(dir, "README.md"), string(readme), image)
 	}
 	fixtures, _ := filepath.Glob(filepath.Join(l.repo, "test", "fixtures", name, "*.yaml"))
 	if len(fixtures) < 2 {
 		l.errorf(o.file, "needs at least two fixtures in test/fixtures/%s/ (one passing, one failing)", name)
+	}
+}
+
+// checkImageSection checks the README's "Image" section (scripts/step-images.sh)
+// names the step's image and embeds its Dockerfile verbatim.
+func (l *linter) checkImageSection(file, readme, image string) {
+	const fix = "; run scripts/step-images.sh"
+	_, section, ok := strings.Cut(readme, "<!-- step-image:start")
+	section, _, ok2 := strings.Cut(section, "<!-- step-image:end -->")
+	if !ok || !ok2 {
+		l.errorf(file, "missing the generated Image section"+fix)
+		return
+	}
+	if !strings.Contains(section, "`"+image+"`") {
+		l.errorf(file, "Image section does not name %s"+fix, image)
+	}
+	tool, _, _ := strings.Cut(strings.TrimPrefix(image, imageRegistry), ":")
+	dockerfile, err := os.ReadFile(filepath.Join(l.repo, "docker", tool, "Dockerfile"))
+	if err != nil {
+		return // reported by checkStep
+	}
+	if !strings.Contains(section, "```dockerfile\n"+string(dockerfile)+"```\n") {
+		l.errorf(file, "Image section is out of date with docker/%s/Dockerfile"+fix, tool)
 	}
 }
 

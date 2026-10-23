@@ -23,7 +23,7 @@
         "custom.regex"
       ],
       "prBodyNotes": [
-        "Update the image tag in every kargo/custom-steps/*/*/*.yaml that uses this image; `make lint` fails until you do."
+        "Update the image tag in every kargo/custom-steps/*/*/*.yaml that uses this image, then run `make step-images` to refresh the step READMEs; `make lint` fails until you do."
       ]
     }
   ]
