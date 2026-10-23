@@ -49,6 +49,7 @@ Beyond the [common prerequisites](../../../../README.md#prerequisites):
 | `platform` | string | e.g. `linux/amd64` |
 | `source` | string | The API server that answered |
 | `auth` | string | How the step authenticated: `argocd-capability`, `token` or `anonymous` |
+| `argocdCredentials` | string | What the `access-argocd` capability provided: `token` (Argo CD is in this cluster, so the step can use it), `kubeconfig` (Argo CD is remote: another cluster) or `none`. Explains a 401 on the default lookup |
 | `error` | string | Only when the step fails: why |
 
 ## Example
@@ -76,6 +77,7 @@ the same output in the Kargo UI. Long lists and strings are trimmed here.
 
 ```json
 {
+  "argocdCredentials": "none",
   "auth": "anonymous",
   "gitVersion": "v1.30.4-eks-a737599",
   "major": "1",
@@ -90,7 +92,8 @@ the same output in the Kargo UI. Long lists and strings are trimmed here.
 
 ```json
 {
-  "error": "http://fake-k8s-api:8080/locked does not allow anonymous access to /version (HTTP 401): run the promotion where Argo CD is in the same cluster (the access-argocd capability then provides a token), or set config.token",
+  "argocdCredentials": "none",
+  "error": "http://fake-k8s-api:8080/locked does not allow anonymous access to /version (HTTP 401): the access-argocd capability provided no credentials (is Kargo's Argo CD integration enabled for this agent?). Set config.token, or allow anonymous /version on the cluster",
   "source": "http://fake-k8s-api:8080/locked",
   "version": ""
 }
@@ -99,7 +102,7 @@ the same output in the Kargo UI. Long lists and strings are trimmed here.
 The promotion stops with this message:
 
 ```text
-Step failed (stderr: cluster-version: http://fake-k8s-api:8080/locked does not allow anonymous access to /version (HTTP 401): run the promotion where Argo CD is in the same cluster (the access-argocd capability then provides a token), or set config.token
+Step failed (stderr: cluster-version: http://fake-k8s-api:8080/locked does not allow anonymous access to /version (HTTP 401): the access-argocd capability provided no credentials (is Kargo's Argo CD integration enabled for this agent?). Set config.token, or allow anonymous /version on the cluster
 )
 
 ```

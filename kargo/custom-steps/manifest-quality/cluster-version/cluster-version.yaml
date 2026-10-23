@@ -60,13 +60,20 @@ spec:
     CV_CA_CERT="$(jq -j . <<<"$CV_CA_CERT")"
     CV_TOKEN="$(jq -j . <<<"$CV_TOKEN")"
     fail() {
-      jq -n --arg e "$*" --arg src "${server:-}" '{version: "", source: $src, error: $e}' > "$out"
+      jq -n --arg e "$*" --arg src "${server:-}" --arg ac "${argocd_provided:-}" '{version: "", source: $src, argocdCredentials: $ac, error: $e}' > "$out"
       echo "cluster-version: $*" >&2; exit 1
     }
     trap 'echo "cluster-version: unexpected error on line $LINENO" >&2' ERR
 
     server="$CV_API_SERVER"
     auth=anonymous
+    # What the access-argocd capability provided (names only, never contents), so a
+    # failed lookup can say why: token = in-cluster Argo CD (usable here),
+    # kubeconfig = remote Argo CD (another cluster), none = nothing provisioned.
+    argocd_creds="${STEP_DIRECTORY:-/coordination}/kubernetes/argocd"
+    if [ -f "$argocd_creds/token" ] && [ -f "$argocd_creds/ca.crt" ]; then argocd_provided=token
+    elif [ -f "$argocd_creds/kubeconfig" ]; then argocd_provided=kubeconfig
+    else argocd_provided=none; fi
     curl_args=(--silent --show-error --max-time 15 --output /tmp/version.json --write-out '%{http_code}')
     if [ -z "$server" ]; then
       # The cluster the promotion pod runs on.
@@ -74,8 +81,7 @@ spec:
       # access-argocd provisions token + ca.crt only for an in-cluster Argo CD, i.e.
       # credentials for this very cluster. (A kubeconfig means a remote Argo CD:
       # the wrong cluster, so it is ignored.)
-      argocd_creds="${STEP_DIRECTORY:-/coordination}/kubernetes/argocd"
-      if [ -z "$CV_TOKEN" ] && [ -f "$argocd_creds/token" ] && [ -f "$argocd_creds/ca.crt" ]; then
+      if [ -z "$CV_TOKEN" ] && [ "$argocd_provided" = token ]; then
         CV_TOKEN="$(cat "$argocd_creds/token")"
         [ -n "$CV_CA_CERT" ] || CV_CA_CERT="$(cat "$argocd_creds/ca.crt")"
         auth=argocd-capability
@@ -110,7 +116,12 @@ spec:
           argocd-capability) fail "$server rejected the in-cluster token from the access-argocd capability (HTTP $code)" ;;
           token) fail "$server rejected the token (HTTP $code)" ;;
         esac
-        fail "$server does not allow anonymous access to /version (HTTP $code): run the promotion where Argo CD is in the same cluster (the access-argocd capability then provides a token), or set config.token" ;;
+        case "$argocd_provided" in
+          kubeconfig) why="the access-argocd capability provided a kubeconfig, so this agent's Argo CD is remote (another cluster) and Kargo gives no token for this one" ;;
+          none) why="the access-argocd capability provided no credentials (is Kargo's Argo CD integration enabled for this agent?)" ;;
+          *) why="no token was available" ;;
+        esac
+        fail "$server does not allow anonymous access to /version (HTTP $code): $why. Set config.token, or allow anonymous /version on the cluster" ;;
       000) fail "cannot reach $server: $(tail -1 /tmp/curl.err) (is it reachable from the cluster where promotion pods run?)" ;;
       *) fail "$server returned HTTP $code for /version" ;;
     esac
@@ -121,14 +132,15 @@ spec:
     version="$(sed -nE 's/^v?([0-9]+)\.([0-9]+)\.([0-9]+).*/v\1.\2.\3/p' <<<"$git_version")"
     [ -n "$version" ] || fail "unrecognized gitVersion: $git_version"
 
-    jq --arg v "$version" --arg src "$server" --arg auth "$auth" '{
+    jq --arg v "$version" --arg src "$server" --arg auth "$auth" --arg ac "$argocd_provided" '{
         version: $v,
         gitVersion: .gitVersion,
         major: (.major // ""),
         minor: ($v | ltrimstr("v") | split(".")[:2] | join(".")),
         platform: (.platform // ""),
         source: $src,
-        auth: $auth
+        auth: $auth,
+        argocdCredentials: $ac
       }' /tmp/version.json > "$out"
     echo "Cluster at $server runs Kubernetes $git_version ($version); authenticated: $auth."
   output:

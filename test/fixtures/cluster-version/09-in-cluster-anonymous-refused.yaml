@@ -1,4 +1,4 @@
-description: without the capability's credentials, a cluster that refuses anonymous /version gets a message naming both fixes
+description: with no capability credentials, a cluster that refuses anonymous /version gets a message saying none were provided
 config:
   insecureSkipTLSVerify: true
 env:
@@ -7,6 +7,8 @@ env:
 docker: ["--network", "runstep-k8s-api"]
 expect:
   status: Failed
+  output:
+    argocdCredentials: none
   messageContains:
   - "does not allow anonymous access to /version (HTTP 401)"
-  - "the access-argocd capability then provides a token"
+  - "the access-argocd capability provided no credentials"

@@ -15,4 +15,5 @@ expect:
   output:
     version: v1.30.4
     auth: argocd-capability
+    argocdCredentials: token
     source: https://fake-k8s-api:8443

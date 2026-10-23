@@ -10,4 +10,4 @@ expect:
   - error
   messageContains:
   - "does not allow anonymous access to /version (HTTP 401)"
-  - "or set config.token"
+  - "Set config.token, or allow anonymous /version on the cluster"
