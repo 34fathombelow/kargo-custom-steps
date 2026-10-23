@@ -1,0 +1,118 @@
+# CustomPromotionStep: cluster-version
+#
+# Looks up the Kubernetes version of a cluster from its API server's /version
+# endpoint, so later steps target what the cluster actually runs instead of a
+# version someone has to keep updating by hand, e.g.
+#   deprecated-apis:  k8sVersion: ${{ task.outputs['cluster'].version }}
+#
+# /version is readable without credentials on a default Kubernetes cluster
+# (the built-in system:public-info-viewer role), so usually only network access
+# to the API server is needed.
+#
+# Config (all optional):
+#   apiServer              API server URL; default: the cluster the promotion
+#                          runs on (https://kubernetes.default.svc)
+#   caCert                 PEM CA bundle to verify apiServer's certificate
+#   insecureSkipTLSVerify  skip certificate verification (/version is public
+#                          information, but a spoofed answer would mislead the gates)
+#   token                  bearer token, only for clusters that disable anonymous /version
+#
+# Output (JSON): version (vX.Y.Z), gitVersion (raw, e.g. v1.30.4-eks-a737599),
+#   major, minor ("1.30": a string; prefer `version` in expressions), platform, source
+apiVersion: ee.kargo.akuity.io/v1alpha1
+kind: CustomPromotionStep
+metadata:
+  name: cluster-version
+spec:
+  image: ghcr.io/34fathombelow/toolbox:1.2.0
+  defaultTimeout: 1m
+  defaultErrorThreshold: 3
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      memory: 64Mi
+  env:
+  - name: CV_API_SERVER
+    value: ${{ quote(config.apiServer ?? "") }}
+  - name: CV_CA_CERT
+    value: ${{ asJSON(config.caCert ?? "") }}
+  - name: CV_INSECURE
+    value: ${{ quote(string(config.insecureSkipTLSVerify ?? false)) }}
+  - name: CV_TOKEN
+    value: ${{ asJSON(config.token ?? "") }}
+  command:
+  - bash
+  - -c
+  - |
+    set -euo pipefail
+    out=/tmp/cluster-version.json
+    # Secrets and free-form values arrive as JSON (asJSON) so newlines and quotes survive.
+    CV_CA_CERT="$(jq -j . <<<"$CV_CA_CERT")"
+    CV_TOKEN="$(jq -j . <<<"$CV_TOKEN")"
+    fail() {
+      jq -n --arg e "$*" --arg src "${server:-}" '{version: "", source: $src, error: $e}' > "$out"
+      echo "cluster-version: $*" >&2; exit 1
+    }
+    trap 'echo "cluster-version: unexpected error on line $LINENO" >&2' ERR
+
+    server="$CV_API_SERVER"
+    curl_args=(--silent --show-error --max-time 15 --output /tmp/version.json --write-out '%{http_code}')
+    if [ -z "$server" ]; then
+      # The cluster the promotion pod runs on.
+      server="https://${KUBERNETES_SERVICE_HOST:-kubernetes.default.svc}:${KUBERNETES_SERVICE_PORT:-443}"
+      sa_ca=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      if [ -z "$CV_CA_CERT" ] && [ "$CV_INSECURE" != "true" ]; then
+        if [ -f "$sa_ca" ]; then
+          curl_args+=(--cacert "$sa_ca")
+        else
+          fail "no CA to verify the in-cluster API server (no service account CA is mounted): set config.caCert, or config.insecureSkipTLSVerify: true"
+        fi
+      fi
+    fi
+    case "$server" in
+      http://*|https://*) ;;
+      *) fail "config.apiServer must be an http(s) URL, got: $server" ;;
+    esac
+    if [ -n "$CV_CA_CERT" ]; then
+      printf '%s\n' "$CV_CA_CERT" > /tmp/cluster-ca.crt
+      curl_args+=(--cacert /tmp/cluster-ca.crt)
+    fi
+    [ "$CV_INSECURE" = "true" ] && curl_args+=(--insecure)
+    if [ -n "$CV_TOKEN" ]; then
+      # Header file: the token never appears in argv.
+      (umask 077; printf 'Authorization: Bearer %s\n' "$CV_TOKEN" > /tmp/auth.header)
+      curl_args+=(--header @/tmp/auth.header)
+    fi
+
+    code="$(curl "${curl_args[@]}" "${server%/}/version" 2>/tmp/curl.err)" || code="000"
+    rm -f /tmp/auth.header
+    case "$code" in
+      200) ;;
+      401|403)
+        if [ -n "$CV_TOKEN" ]; then fail "$server rejected the token (HTTP $code)"; fi
+        fail "$server does not allow anonymous access to /version (HTTP $code): set config.token" ;;
+      000) fail "cannot reach $server: $(tail -1 /tmp/curl.err) (is it reachable from the cluster where promotion pods run?)" ;;
+      *) fail "$server returned HTTP $code for /version" ;;
+    esac
+
+    git_version="$(jq -r '.gitVersion // empty' /tmp/version.json 2>/dev/null || true)"
+    [ -n "$git_version" ] || fail "$server/version did not return a gitVersion (is it a Kubernetes API server?)"
+    # vX.Y.Z without vendor suffixes (v1.30.4-eks-a737599 -> v1.30.4), the form pluto and helm expect.
+    version="$(sed -nE 's/^v?([0-9]+)\.([0-9]+)\.([0-9]+).*/v\1.\2.\3/p' <<<"$git_version")"
+    [ -n "$version" ] || fail "unrecognized gitVersion: $git_version"
+
+    jq --arg v "$version" --arg src "$server" '{
+        version: $v,
+        gitVersion: .gitVersion,
+        major: (.major // ""),
+        minor: ($v | ltrimstr("v") | split(".")[:2] | join(".")),
+        platform: (.platform // ""),
+        source: $src
+      }' /tmp/version.json > "$out"
+    echo "Cluster at $server runs Kubernetes $git_version ($version)."
+  output:
+    source:
+      type: File
+      path: /tmp/cluster-version.json

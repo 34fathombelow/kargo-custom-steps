@@ -1,0 +1,9 @@
+description: a cluster that disables anonymous /version works with a token (sent as a header, never on the command line)
+config:
+  apiServer: http://fake-k8s-api:8080/locked
+  token: test-token
+docker: ["--network", "runstep-k8s-api"]
+expect:
+  status: Succeeded
+  output:
+    version: v1.30.4

@@ -21,7 +21,8 @@ Two jobs, both required to pass before merging:
   - `helm lint` checks the small chart the `manifest-diff` demo renders.
 - **test**
   - Builds every image in `docker/` locally, without pushing.
-  - Starts a throwaway Postgres for the `flyway-migrate` tests (`make test-db`).
+  - Starts the services some fixtures call (`make test-services`): a throwaway Postgres for `flyway-migrate` and a fake
+    Kubernetes API for `cluster-version`.
   - Runs every step's test fixtures (`make test`) with the local harness in [test/cmd/runstep](../../test/cmd/runstep).
 
 It needs no secrets.

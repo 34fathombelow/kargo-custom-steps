@@ -18,6 +18,7 @@ declare -A runs=(
   [trivy-image]="Passes:pass Blocked:blocked"
   [cosign-verify]="Verified:verified Blocked:unsigned"
   [deprecated-apis]="Passes:k8s-1-25-passes Blocked:k8s-1-33-blocked"
+  [cluster-version]="Found:01-anonymous Refused:03-anonymous-disabled"
   [manifest-diff]="Changed:changed-dirs Unchanged:unchanged"
   [release-diff]="Forward:forward Rollback:rollback"
   [argocd-drift-check]="Passes:synced-healthy Blocked:out-of-sync"
@@ -94,6 +95,8 @@ steps=("$@")
 for step in "${steps[@]}"; do
   [ -n "${runs[$step]:-}" ] || { echo "example-outputs.sh: no examples configured for $step" >&2; exit 1; }
   if [ "$step" = flyway-migrate ]; then test/fixtures/flyway-migrate/test-db.sh; fi
+  if [ "$step" = cluster-version ]; then test/fixtures/cluster-version/fake-api.sh; fi
   update_readme "$step"
   if [ "$step" = flyway-migrate ]; then test/fixtures/flyway-migrate/test-db.sh down; fi
+  if [ "$step" = cluster-version ]; then test/fixtures/cluster-version/fake-api.sh down; fi
 done

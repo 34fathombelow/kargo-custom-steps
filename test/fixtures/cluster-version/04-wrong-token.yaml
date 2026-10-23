@@ -1,0 +1,9 @@
+description: a wrong token is reported as rejected
+config:
+  apiServer: http://fake-k8s-api:8080/locked
+  token: wrong
+docker: ["--network", "runstep-k8s-api"]
+expect:
+  status: Failed
+  messageContains:
+  - "rejected the token (HTTP 401)"

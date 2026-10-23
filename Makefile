@@ -43,6 +43,16 @@ test: ## Run step fixtures with the local harness (all, or STEP=<step>)
 		done; \
 	done; exit $$fail
 
+.PHONY: test-services
+test-services: ## Start the services some fixtures call (flyway-migrate's Postgres, cluster-version's fake API)
+	test/fixtures/flyway-migrate/test-db.sh
+	test/fixtures/cluster-version/fake-api.sh
+
+.PHONY: test-services-down
+test-services-down: ## Remove the fixture services
+	test/fixtures/flyway-migrate/test-db.sh down
+	test/fixtures/cluster-version/fake-api.sh down
+
 .PHONY: test-db
 test-db: ## (Re)create the Postgres container the flyway-migrate fixtures use
 	test/fixtures/flyway-migrate/test-db.sh

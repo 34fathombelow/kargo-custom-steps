@@ -1,0 +1,7 @@
+description: apiServer must be a URL
+config:
+  apiServer: my-cluster
+expect:
+  status: Failed
+  messageContains:
+  - "config.apiServer must be an http(s) URL"

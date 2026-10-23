@@ -1,0 +1,35 @@
+# Looks up the target cluster's Kubernetes version with the cluster-version
+# custom step, then checks the manifests against it with deprecated-apis, so
+# nobody has to keep a version number in the Stage up to date.
+#
+# The demo asks the cluster the promotion runs on (the custom-steps agent
+# cluster). For a Stage that deploys elsewhere, set apiServer to that cluster's
+# API URL; the promotion pod must be able to reach it.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: PromotionTask
+metadata:
+  name: cluster-version
+  namespace: custom-steps-manifest-quality
+spec:
+  vars:
+  - name: repoURL
+    value: https://github.com/34fathombelow/kargo-custom-steps.git
+  steps:
+  - uses: git-clone
+    config:
+      repoURL: ${{ vars.repoURL }}
+      checkout:
+      - branch: main
+        path: ./src
+  - uses: cluster-version
+    as: cluster
+    config:
+      # Demo only: custom-step containers may not have the cluster CA mounted.
+      # In real use, set caCert (and apiServer for a remote cluster).
+      insecureSkipTLSVerify: true
+  - uses: deprecated-apis
+    as: apis
+    config:
+      path: ./src/demo-fixtures/deprecated-apis/manifests
+      # `version` is vX.Y.Z (e.g. v1.33.4), which the template engine keeps as a string.
+      k8sVersion: ${{ task.outputs['cluster'].version }}

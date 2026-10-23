@@ -2,7 +2,7 @@
 
 General-purpose image for steps that are mostly shell: `bash`, `jq`, `yq`, `curl`, `git` and the GNU coreutils.
 
-Used by: `release-diff`, `argocd-drift-check`.
+Used by: `release-diff`, `argocd-drift-check`, `cluster-version`.
 
 ## Build manually
 

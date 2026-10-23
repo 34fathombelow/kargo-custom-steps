@@ -1,0 +1,12 @@
+description: reads the version anonymously and strips the vendor suffix, so later steps get a clean vX.Y.Z
+config:
+  apiServer: http://fake-k8s-api:8080
+docker: ["--network", "runstep-k8s-api"]
+expect:
+  status: Succeeded
+  output:
+    version: v1.30.4
+    gitVersion: v1.30.4-eks-a737599
+    minor: "1.30"
+    platform: linux/amd64
+    source: http://fake-k8s-api:8080

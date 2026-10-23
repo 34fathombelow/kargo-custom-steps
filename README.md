@@ -145,6 +145,7 @@ Steps that need more:
 | `argocd-drift-check` | Argo CD managing the target app, integrated with the `custom-steps` Kargo agent; Kargo capability `access-argocd`. Demo: Argo CD syncs two sample apps ([prereqs/argocd-drift-check](prereqs/argocd-drift-check)), which needs Argo CD clusters `in-cluster` and `custom-steps-agent` |
 | `flyway-migrate` | A database reachable from the agent cluster, and its credentials. Demo: Argo CD deploys a Postgres to cluster `custom-steps-agent` ([prereqs/flyway-migrate](prereqs/flyway-migrate)); you create the `flyway-db` secret in the Kargo UI ([secrets/README.md](secrets/README.md)) |
 | `jsonnet-render` | Egress to GitHub only with `jbInstall: true` |
+| `cluster-version` | Network access from the agent cluster to the target cluster's API server (none for the default: the agent cluster itself) |
 | `kyverno-apply`, `opa-promotion-gate`, `deprecated-apis`, `manifest-diff` | Nothing beyond the common prerequisites |
 
 Each step's README has the full list: cluster add-ons and which cluster, reachable services, accounts, Kargo
@@ -159,7 +160,7 @@ a blocked promotion shows.
 |---|---|---|
 | [Policy](#policy) | `kyverno-apply`, `opa-conftest`, `opa-promotion-gate` | [`custom-steps-policy`](kargo/projects/policy) |
 | [Supply chain](#supply-chain) | `trivy-image`, `cosign-verify` | [`custom-steps-supply-chain`](kargo/projects/supply-chain) |
-| [Manifest quality](#manifest-quality) | `deprecated-apis` | [`custom-steps-manifest-quality`](kargo/projects/manifest-quality) |
+| [Manifest quality](#manifest-quality) | `deprecated-apis`, `cluster-version` | [`custom-steps-manifest-quality`](kargo/projects/manifest-quality) |
 | [Release insight](#release-insight) | `manifest-diff`, `release-diff`, `argocd-drift-check` | [`custom-steps-release-insight`](kargo/projects/release-insight) |
 | [Data](#data) | `flyway-migrate` | [`custom-steps-data`](kargo/projects/data) |
 | [Rendering](#rendering) | `jsonnet-render` | [`custom-steps-rendering`](kargo/projects/rendering) |
@@ -355,6 +356,30 @@ spec:
 ```
 
 Full config, outputs and demo walkthrough: [kargo/custom-steps/manifest-quality/deprecated-apis](kargo/custom-steps/manifest-quality/deprecated-apis/README.md).
+
+#### cluster-version
+
+Hard-coding each Stage's Kubernetes version means someone has to update it after every cluster upgrade, and a stale
+number makes `deprecated-apis` check against the wrong version. `cluster-version` asks the cluster instead: it reads the
+API server's `/version` endpoint (readable without credentials on a default cluster) and outputs a clean `vX.Y.Z`,
+with vendor suffixes such as `-eks-...` stripped, for later steps.
+
+**Prerequisites:** network access from the agent cluster to the target API server. The default (no `apiServer`) asks the
+cluster the promotion runs on.
+
+```yaml
+- uses: cluster-version
+  as: cluster
+  config:
+    apiServer: https://prod-cluster.example.com   # omit to ask the cluster the promotion runs on
+- uses: deprecated-apis
+  config:
+    path: ./out
+    k8sVersion: ${{ outputs['cluster'].version }}  # e.g. v1.33.4
+```
+
+[Step definition](kargo/custom-steps/manifest-quality/cluster-version/cluster-version.yaml) ·
+[Reference](kargo/custom-steps/manifest-quality/cluster-version/README.md)
 
 ### Release insight
 
