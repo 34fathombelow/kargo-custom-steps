@@ -1,0 +1,138 @@
+# CustomPromotionStep: release-diff
+#
+# What changed between the revision a Stage runs now and the one being
+# promoted: the git log between two commits, optionally limited to some paths.
+# Rollback-aware: when the promoted revision is an ancestor of the current one,
+# it lists the commits being *reverted* instead of reporting "no changes".
+#
+# Config:
+#   repoURL   - repository to clone (blobless, read-only, public or reachable), or
+#   repoPath  - workdir-relative existing clone (e.g. from git-clone; use this for
+#               private repos so Kargo's own git credentials are used)
+#   from      - revision currently deployed; empty means "first release"
+#   to        - revision being promoted (required)
+#   paths     - list of repo paths to limit the log to (default: whole repo)
+#   maxLines  - cap on log lines (default 150)
+# Pass revisions through quote() in the promotion template too: a short SHA that
+# is all digits (e.g. 4067264) otherwise arrives as a number.
+#
+# Output (JSON): log, commits, rollback, firstRelease, note, summary, from, to, links
+apiVersion: ee.kargo.akuity.io/v1alpha1
+kind: CustomPromotionStep
+metadata:
+  name: release-diff
+spec:
+  image: ghcr.io/34fathombelow/toolbox:1.2.0
+  defaultTimeout: 5m
+  defaultErrorThreshold: 2
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 512Mi
+  env:
+  - name: RD_REPO_URL
+    value: ${{ quote(config.repoURL ?? "") }}
+  - name: RD_REPO_PATH
+    value: ${{ quote(config.repoPath ?? "") }}
+  - name: RD_FROM
+    value: ${{ quote(config.from ?? "") }}
+  - name: RD_TO
+    value: ${{ quote(config.to ?? "") }}
+  - name: RD_PATHS
+    value: ${{ asJSON(config.paths ?? []) }}
+  - name: RD_MAX_LINES
+    value: ${{ quote(string(config.maxLines ?? 150)) }}
+  command:
+  - bash
+  - -c
+  - |
+    set -euo pipefail
+    out=/tmp/release-diff.json
+    fail() { echo "release-diff: $*" >&2; exit 1; }
+
+    [ -n "$RD_TO" ] || fail "config.to is required (the revision being promoted, e.g. commitFrom(repoURL).ID)"
+    [[ "$RD_MAX_LINES" =~ ^[0-9]+$ ]] || fail "config.maxLines must be a number, got: $RD_MAX_LINES"
+    paths_json="$(jq -c 'if type == "array" then . else error end' <<<"$RD_PATHS" 2>/dev/null)" || fail "config.paths must be a list"
+    mapfile -t paths < <(jq -r '.[]' <<<"$paths_json")
+
+    if [ -n "$RD_REPO_PATH" ]; then
+      [ -e "$RD_REPO_PATH/.git" ] || git -C "$RD_REPO_PATH" rev-parse --git-dir >/dev/null 2>&1 \
+        || fail "repoPath $RD_REPO_PATH is not a git clone in the workdir (did an earlier git-clone step check it out?)"
+      src="$RD_REPO_PATH"
+      remote="$(git -C "$src" remote get-url origin 2>/dev/null || true)"
+    elif [ -n "$RD_REPO_URL" ]; then
+      src=/tmp/repo
+      git clone --quiet --filter=blob:none --no-checkout "$RD_REPO_URL" "$src" 2>/tmp/clone.err \
+        || fail "cannot clone $RD_REPO_URL: $(tail -1 /tmp/clone.err) (for private repos, clone with git-clone and set repoPath)"
+      remote="$RD_REPO_URL"
+    else
+      fail "set config.repoURL or config.repoPath"
+    fi
+    git config --global --add safe.directory '*' 2>/dev/null || true
+
+    resolve() { git -C "$src" rev-parse --verify --quiet "$1^{commit}" 2>/dev/null; }
+    # A shallow clone may not contain older revisions; fetch them if possible.
+    if [ "$(git -C "$src" rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+      git -C "$src" fetch --quiet --unshallow 2>/dev/null || true
+    fi
+    to_sha="$(resolve "$RD_TO")" || fail "revision $RD_TO (to) not found in the repository"
+
+    rollback=false; first=false; note=""
+    range=""
+    if [ -z "$RD_FROM" ]; then
+      first=true; note="first release: showing the latest changes"
+      range="$to_sha"; limit=(-n 20)
+    elif ! from_sha="$(resolve "$RD_FROM")"; then
+      first=true; note="previous revision $RD_FROM not found (history rewritten?): showing the latest changes"
+      range="$to_sha"; limit=(-n 20)
+    elif [ "$from_sha" = "$to_sha" ]; then
+      note="unchanged: $RD_TO is already deployed"
+      range=""; limit=()
+    elif git -C "$src" merge-base --is-ancestor "$to_sha" "$from_sha"; then
+      rollback=true; note="rollback: reverting the commits below"
+      range="$to_sha..$from_sha"; limit=()
+    else
+      range="$from_sha..$to_sha"; limit=()
+    fi
+
+    : > /tmp/log.txt
+    if [ -n "$range" ]; then
+      git -C "$src" log "${limit[@]}" --no-merges --format='%h %s (%as)' "$range" -- "${paths[@]}" > /tmp/log.all
+      commits="$(wc -l < /tmp/log.all | tr -d ' ')"
+      head -n "$RD_MAX_LINES" /tmp/log.all > /tmp/log.txt
+      if [ "$commits" -gt "$RD_MAX_LINES" ]; then
+        echo "... $((commits - RD_MAX_LINES)) more" >> /tmp/log.txt
+      fi
+    else
+      commits=0
+    fi
+
+    # Compare link for GitHub-hosted repositories.
+    links='[]'
+    gh="$(sed -E -n 's#^(https://|git@)github\.com[:/]([^/]+/[^/]+)$#\2#p' <<<"${remote%.git}")"
+    if [ -n "$gh" ] && [ "$first" = "false" ] && [ -n "$range" ]; then
+      links="$(jq -cn --arg u "https://github.com/$gh/compare/${range/../...}" '[{url: $u, label: "Compare on GitHub"}]')"
+    fi
+
+    scope="the repository"; [ "${#paths[@]}" -gt 0 ] && scope="$(IFS=,; echo "${paths[*]}")"
+    if [ "$rollback" = "true" ]; then summary="rollback: reverting $commits commit(s) in $scope"
+    elif [ "$first" = "true" ]; then summary="$note"
+    elif [ "$commits" -eq 0 ]; then summary="${note:-no changes in $scope}"
+    else summary="$commits commit(s) in $scope"
+    fi
+
+    jq -n --rawfile log /tmp/log.txt --argjson commits "$commits" --argjson rollback "$rollback" \
+      --argjson first "$first" --arg summary "$summary" --arg note "$note" \
+      --arg from "$RD_FROM" --arg to "$RD_TO" --argjson links "$links" \
+      '{log: $log, commits: $commits, rollback: $rollback, firstRelease: $first,
+        summary: $summary, note: $note, from: $from, to: $to, links: $links}' > "$out"
+
+    echo "$summary"
+    [ -n "$note" ] && [ "$note" != "$summary" ] && echo "$note"
+    cat /tmp/log.txt
+  output:
+    source:
+      type: File
+      path: /tmp/release-diff.json

@@ -1,0 +1,21 @@
+description: prod by a non-release-manager, Friday afternoon, without a change ticket, is denied with every reason
+config:
+  policyPath: src/policy/opa/promotion
+  now: "2026-11-13T16:00:00Z"
+ctx:
+  stage: prod-us
+  meta:
+    promotion:
+      actor: alice@example.com
+files:
+  src/policy/opa/promotion: policy/opa/promotion
+expect:
+  status: Failed
+  output:
+    allowed: false
+    reasons:
+    - alice@example.com may not promote to production; only release managers can (oncall-lead@example.com, release-manager@example.com)
+    - no production promotions after 14:00 UTC on Fridays
+    - production promotions need a change ticket (config.input.change_ticket)
+  messageContains:
+  - "Promotion denied by policy data.kargo.promotion"

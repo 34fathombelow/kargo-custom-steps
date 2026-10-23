@@ -1,0 +1,31 @@
+# Applies policy/opa/promotion/promotion.rego to the promotion itself.
+# The policy treats environment "prod" as production: only release managers
+# may promote, never on Friday afternoons, and only with a change ticket.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: PromotionTask
+metadata:
+  name: opa-promotion-gate
+  namespace: custom-steps-policy
+spec:
+  vars:
+  - name: repoURL
+    value: https://github.com/34fathombelow/kargo-custom-steps.git
+  - name: environment
+    value: dev
+  - name: changeTicket
+    value: ""
+  steps:
+  - uses: git-clone
+    config:
+      repoURL: ${{ vars.repoURL }}
+      checkout:
+      - branch: main
+        path: ./src
+  - uses: opa-promotion-gate
+    as: policy
+    config:
+      policyPath: ./src/policy/opa/promotion
+      input:
+        environment: ${{ vars.environment }}
+        # quote(): a numeric ticket like 12345 would otherwise become a number.
+        change_ticket: ${{ quote(vars.changeTicket) }}

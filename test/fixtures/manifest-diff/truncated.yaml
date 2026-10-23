@@ -1,0 +1,13 @@
+description: long diffs are capped at maxBytes so the output stays under Kargo's 256 KiB limit
+config:
+  from: before
+  to: after
+  maxBytes: 100
+files:
+  before: demo-fixtures/manifest-diff/before
+  after: demo-fixtures/manifest-diff/after
+expect:
+  status: Succeeded
+  output:
+    changed: true
+    truncated: true

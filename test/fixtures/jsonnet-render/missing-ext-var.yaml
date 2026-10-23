@@ -1,0 +1,12 @@
+description: a missing ext var surfaces jsonnet's own error
+config:
+  path: ./src/main.jsonnet
+  outPath: ./out
+  jpath: [./src/lib]
+files:
+  src: demo-fixtures/jsonnet-render
+expect:
+  status: Failed
+  messageContains:
+  - "Undefined external variable: image"
+  - "jsonnet failed to evaluate ./src/main.jsonnet"

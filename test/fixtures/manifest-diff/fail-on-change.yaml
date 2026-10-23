@@ -1,0 +1,14 @@
+description: with failOnChange the step fails when anything changed, and still reports the diff
+config:
+  from: before
+  to: after
+  failOnChange: true
+files:
+  before: demo-fixtures/manifest-diff/before
+  after: demo-fixtures/manifest-diff/after
+expect:
+  status: Failed
+  output:
+    changed: true
+  messageContains:
+  - "manifests changed and failOnChange is true"

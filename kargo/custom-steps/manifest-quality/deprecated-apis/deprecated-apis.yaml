@@ -1,0 +1,92 @@
+# CustomPromotionStep: deprecated-apis
+#
+# Fails a promotion when the manifests about to be deployed use Kubernetes APIs
+# that are removed in (or, optionally, deprecated as of) the target cluster's
+# Kubernetes version. Catches "works in staging, breaks after the prod upgrade"
+# before Argo CD ever tries to sync. Uses Fairwinds pluto.
+#
+# Config:
+#   path        - workdir-relative directory of rendered manifests (e.g. ./out
+#                 from helm-template / kustomize-build), scanned recursively
+#   k8sVersion  - target Kubernetes version: "1.33", "v1.33" or "v1.33.0"
+#   failOn      - "removed" (default) or "deprecated"
+#
+# Output (JSON): passed, targetVersion, failOn, removed[], deprecated[], counts{removed,deprecated}
+apiVersion: ee.kargo.akuity.io/v1alpha1
+kind: CustomPromotionStep
+metadata:
+  name: deprecated-apis
+spec:
+  image: ghcr.io/34fathombelow/pluto:v5.24.4
+  defaultTimeout: 2m
+  defaultErrorThreshold: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+  env:
+  - name: SCAN_PATH
+    value: ${{ quote(config.path ?? "") }}
+  # quote() matters here: an unquoted "1.30" would arrive as 1.3.
+  - name: K8S_VERSION
+    value: ${{ quote(config.k8sVersion ?? "") }}
+  - name: FAIL_ON
+    value: ${{ quote(config.failOn ?? "removed") }}
+  command:
+  - bash
+  - -c
+  - |
+    set -euo pipefail
+    out=/tmp/deprecated-apis.json
+    fail() { echo "deprecated-apis: $*" >&2; exit 1; }
+
+    [ -n "$SCAN_PATH" ] || fail "config.path is required (the directory of rendered manifests)"
+    [ -d "$SCAN_PATH" ] || fail "config.path $SCAN_PATH is not a directory in the workdir (did an earlier helm-template / kustomize-build / git-clone step write it?)"
+    [ -n "$K8S_VERSION" ] || fail "config.k8sVersion is required (the target cluster's Kubernetes version, e.g. \"1.33\")"
+    case "$FAIL_ON" in removed|deprecated) ;; *) fail "config.failOn must be \"removed\" or \"deprecated\", got \"$FAIL_ON\"" ;; esac
+
+    # pluto requires a full semver with a leading v.
+    v="${K8S_VERSION#v}"
+    [[ "$v" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || fail "config.k8sVersion \"$K8S_VERSION\" is not a version like 1.33 or v1.33.0"
+    [[ "$v" =~ ^[0-9]+\.[0-9]+$ ]] && v="$v.0"
+    target="v$v"
+
+    # pluto's own exit codes mix up several conditions (e.g. 4 for "replacement
+    # not available"), so they are all ignored and the decision is made below.
+    raw="$(pluto detect-files -d "$SCAN_PATH" -t "k8s=$target" -o json \
+      --ignore-deprecations --ignore-removals --ignore-unavailable-replacements)" \
+      || fail "pluto could not scan $SCAN_PATH"
+
+    jq --arg target "$target" --arg failOn "$FAIL_ON" '
+      def entry: {name, kind: .api.kind, apiVersion: .api.version,
+                  deprecatedIn: .api["deprecated-in"], removedIn: .api["removed-in"],
+                  replacement: .api["replacement-api"], file: .filePath};
+      (.items // []) as $items
+      | ($items | map(select(.removed)) | map(entry)) as $removed
+      | ($items | map(select(.deprecated and (.removed | not))) | map(entry)) as $deprecated
+      | {
+          passed: (if $failOn == "deprecated" then ($removed + $deprecated) == [] else $removed == [] end),
+          targetVersion: $target,
+          failOn: $failOn,
+          removed: $removed,
+          deprecated: $deprecated,
+          counts: {removed: ($removed | length), deprecated: ($deprecated | length)}
+        }' <<<"$raw" > "$out"
+
+    jq -r '
+      (.removed[] | "REMOVED     \(.kind) \(.name) uses \(.apiVersion) (removed in \(.removedIn)\(if .replacement != "" then ", use \(.replacement)" else "" end)) in \(.file)"),
+      (.deprecated[] | "DEPRECATED  \(.kind) \(.name) uses \(.apiVersion) (deprecated in \(.deprecatedIn), removed in \(.removedIn)\(if .replacement != "" then ", use \(.replacement)" else "" end)) in \(.file)")
+    ' "$out"
+    summary="$(jq -r '"\(.counts.removed) removed and \(.counts.deprecated) deprecated API(s) for Kubernetes \(.targetVersion)"' "$out")"
+    if jq -e '.passed' "$out" >/dev/null; then
+      echo "OK: $summary (failOn: $FAIL_ON)."
+      exit 0
+    fi
+    echo "Promotion blocked: $summary (failOn: $FAIL_ON)." >&2
+    exit 1
+  output:
+    source:
+      type: File
+      path: /tmp/deprecated-apis.json

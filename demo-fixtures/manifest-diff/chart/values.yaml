@@ -1,0 +1,34 @@
+image:
+  repository: ghcr.io/akuity/guestbook
+  tag: v0.0.1
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+containerPort: 3000
+
+service:
+  type: ClusterIP
+  port: 80
+
+# Set to good-practice values (resource limits, non-root)
+# (resource limits, non-root, no privilege escalation).
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 100m
+    memory: 64Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]

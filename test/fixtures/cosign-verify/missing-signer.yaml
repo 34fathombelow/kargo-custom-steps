@@ -1,0 +1,7 @@
+description: without an expected signer the step refuses to run (verifying "any signature" proves nothing)
+config:
+  image: ghcr.io/sigstore/cosign/cosign:v3.1.3
+expect:
+  status: Failed
+  messageContains:
+  - "set config.certificateIdentity or config.certificateIdentityRegexp"

@@ -1,0 +1,20 @@
+description: renders one file per manifest into a directory, with the image from an ext var
+config:
+  path: ./src/main.jsonnet
+  outPath: ./out
+  jpath: [./src/lib]
+  extVars:
+    image: ghcr.io/akuity/guestbook:v0.0.2
+  tlaVars:
+    replicas: "2"
+files:
+  src: demo-fixtures/jsonnet-render
+expect:
+  status: Succeeded
+  output:
+    outPath: ./out
+    count: 2
+    files: [./out/deployment-guestbook.yaml, ./out/service-guestbook.yaml]
+    resources:
+    - {kind: Deployment, name: guestbook, namespace: ""}
+    - {kind: Service, name: guestbook, namespace: ""}

@@ -1,0 +1,6 @@
+description: without config.image the step fails with a clear message
+config: {}
+expect:
+  status: Failed
+  messageContains:
+  - "config.image is required"

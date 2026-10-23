@@ -1,0 +1,20 @@
+description: a Synced and Healthy application lets the promotion through and links to Argo CD
+config:
+  app: drift-demo-clean
+  argocdURL: https://argocd.example.com/
+files:
+  app.json: test/fixtures/argocd-drift-check/apps/synced.json
+env:
+  DRIFT_CHECK_APP_FILE: /workdir/app.json
+expect:
+  status: Succeeded
+  output:
+    syncStatus: Synced
+    healthStatus: Healthy
+    drifted: false
+    unhealthy: false
+    outOfSync: []
+    revision: 59d3b42c8919c74d9619116c9440c96c54ea32de
+    links:
+    - url: https://argocd.example.com/applications/argocd/drift-demo-clean
+      label: drift-demo-clean in Argo CD

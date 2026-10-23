@@ -1,0 +1,11 @@
+description: with no previous revision (first promotion to a Stage) the latest changes are shown
+config:
+  repoURL: https://github.com/akuity/guestbook
+  from: ""
+  to: 59d3b42c8919c74d9619116c9440c96c54ea32de
+expect:
+  status: Succeeded
+  output:
+    firstRelease: true
+    commits: 17
+    links: []

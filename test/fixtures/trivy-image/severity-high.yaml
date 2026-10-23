@@ -1,0 +1,8 @@
+description: severity is configurable; HIGH alone on the current image still passes
+config:
+  image: public.ecr.aws/docker/library/alpine:3.24.2
+  severity: high
+expect:
+  status: Succeeded
+  output:
+    blocked: false

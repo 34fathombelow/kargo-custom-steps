@@ -1,0 +1,25 @@
+# Tests manifests against the Rego policies in policy/opa/conftest.
+# vars.manifests picks demo-fixtures/policy/<compliant|violating>.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: PromotionTask
+metadata:
+  name: opa-conftest
+  namespace: custom-steps-policy
+spec:
+  vars:
+  - name: repoURL
+    value: https://github.com/34fathombelow/kargo-custom-steps.git
+  - name: manifests
+    value: compliant
+  steps:
+  - uses: git-clone
+    config:
+      repoURL: ${{ vars.repoURL }}
+      checkout:
+      - branch: main
+        path: ./src
+  - uses: opa-conftest
+    as: conftest
+    config:
+      path: ./src/demo-fixtures/policy/${{ vars.manifests }}
+      policyPath: ./src/policy/opa/conftest

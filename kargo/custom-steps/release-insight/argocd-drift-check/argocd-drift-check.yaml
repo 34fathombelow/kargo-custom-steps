@@ -1,0 +1,153 @@
+# CustomPromotionStep: argocd-drift-check
+#
+# Before promoting, checks that the target Argo CD Application is still what
+# git says it is: blocks the promotion when live resources have drifted from
+# git (someone edited prod by hand) or the app is unhealthy, so a promotion
+# never silently overwrites or builds on top of an unknown state.
+#
+# Uses the access-argocd capability: Kargo provisions credentials for the
+# kargo-promotion-argocd ServiceAccount, which can read Applications through the
+# Kubernetes API (not the Argo CD API server). Built-in argocd-update/argocd-wait
+# handle syncing and waiting *after* the change; this step is the check *before*.
+#
+# Config:
+#   app            - Argo CD Application name (required)
+#   namespace      - Application namespace (default: $ARGOCD_NAMESPACE, else argocd)
+#   requireSynced  - fail when the app or any resource is not Synced (default true)
+#   requireHealthy - fail when the app health is not Healthy (default true)
+#   ignoreKinds    - resource kinds to ignore when looking for drift, e.g. [Job]
+#   argocdURL      - Argo CD UI base URL, to link the app in the promotion
+#
+# Output (JSON): app, namespace, syncStatus, healthStatus, revision, outOfSync[],
+#   drifted, unhealthy, links
+apiVersion: ee.kargo.akuity.io/v1alpha1
+kind: CustomPromotionStep
+metadata:
+  name: argocd-drift-check
+spec:
+  image: ghcr.io/34fathombelow/toolbox:1.2.0
+  capabilities:
+  - access-argocd
+  defaultTimeout: 2m
+  defaultErrorThreshold: 3
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+  env:
+  - name: DC_APP
+    value: ${{ quote(config.app ?? "") }}
+  - name: DC_NAMESPACE
+    value: ${{ quote(config.namespace ?? "") }}
+  - name: DC_REQUIRE_SYNCED
+    value: ${{ quote(string(config.requireSynced ?? true)) }}
+  - name: DC_REQUIRE_HEALTHY
+    value: ${{ quote(string(config.requireHealthy ?? true)) }}
+  - name: DC_IGNORE_KINDS
+    value: ${{ asJSON(config.ignoreKinds ?? []) }}
+  - name: DC_ARGOCD_URL
+    value: ${{ quote(config.argocdURL ?? "") }}
+  command:
+  - bash
+  - -c
+  - |
+    set -euo pipefail
+    out=/tmp/argocd-drift-check.json
+    fail() { echo "argocd-drift-check: $*" >&2; exit 1; }
+
+    [ -n "$DC_APP" ] || fail "config.app is required (the Argo CD Application name)"
+    ignore="$(jq -c 'if type == "array" then . else error end' <<<"$DC_IGNORE_KINDS" 2>/dev/null)" || fail "config.ignoreKinds must be a list"
+    ns="${DC_NAMESPACE:-${ARGOCD_NAMESPACE:-argocd}}"
+
+    if [ -n "${DRIFT_CHECK_APP_FILE:-}" ]; then
+      # Test hook only: read a canned Application instead of the cluster.
+      app_json="$(cat "$DRIFT_CHECK_APP_FILE")"
+    else
+      creds="${STEP_DIRECTORY:-/coordination}/kubernetes/argocd"
+      # Read the Application straight from the Kubernetes API with curl. The
+      # credentials Kargo provisions are either a kubeconfig (remote Argo CD) or a
+      # token + ca.crt (in-cluster). The token goes in a header file so it never
+      # appears in argv.
+      ca="" cert="" key=""
+      if [ -f "$creds/kubeconfig" ]; then
+        kc="$creds/kubeconfig"
+        kctx="$(yq '.["current-context"] // ""' "$kc")"
+        kcluster="$(K="$kctx" yq '.contexts[] | select(.name == strenv(K)) | .context.cluster' "$kc")"
+        kuser="$(K="$kctx" yq '.contexts[] | select(.name == strenv(K)) | .context.user' "$kc")"
+        server="$(K="$kcluster" yq '.clusters[] | select(.name == strenv(K)) | .cluster.server' "$kc")"
+        [ -n "$server" ] && [ "$server" != "null" ] || fail "cannot find the API server in $kc"
+        cadata="$(K="$kcluster" yq '.clusters[] | select(.name == strenv(K)) | .cluster["certificate-authority-data"] // ""' "$kc")"
+        if [ -n "$cadata" ]; then ca=/tmp/argocd-ca.crt; base64 -d <<<"$cadata" > "$ca"; fi
+        token="$(K="$kuser" yq '.users[] | select(.name == strenv(K)) | .user.token // ""' "$kc")"
+        certdata="$(K="$kuser" yq '.users[] | select(.name == strenv(K)) | .user["client-certificate-data"] // ""' "$kc")"
+        keydata="$(K="$kuser" yq '.users[] | select(.name == strenv(K)) | .user["client-key-data"] // ""' "$kc")"
+        if [ -n "$certdata" ] && [ -n "$keydata" ]; then
+          cert=/tmp/argocd-client.crt key=/tmp/argocd-client.key
+          base64 -d <<<"$certdata" > "$cert"; (umask 077; base64 -d <<<"$keydata" > "$key")
+        elif [ -z "$token" ]; then
+          fail "the kubeconfig in $creds uses an auth method this step does not support (needs a token or a client certificate)"
+        fi
+      elif [ -f "$creds/token" ] && [ -f "$creds/ca.crt" ]; then
+        server="https://${KUBERNETES_SERVICE_HOST:-kubernetes.default.svc}:${KUBERNETES_SERVICE_PORT:-443}"
+        ca="$creds/ca.crt"
+        token="$(cat "$creds/token")"
+      else
+        fail "no Argo CD credentials in $creds: the step needs capabilities: [access-argocd], and Kargo must be configured with an Argo CD integration"
+      fi
+      curl_args=(--silent --show-error --max-time 30 --output /tmp/app.json --write-out '%{http_code}')
+      [ -n "$ca" ] && curl_args+=(--cacert "$ca")
+      [ -n "$cert" ] && curl_args+=(--cert "$cert" --key "$key")
+      if [ -n "${token:-}" ]; then
+        (umask 077; printf 'Authorization: Bearer %s\n' "$token" > /tmp/auth.header)
+        curl_args+=(--header @/tmp/auth.header)
+      fi
+      url="${server%/}/apis/argoproj.io/v1alpha1/namespaces/${ns}/applications/${DC_APP}"
+      code="$(curl "${curl_args[@]}" "$url" 2>/tmp/curl.err)" || code="000"
+      rm -f /tmp/auth.header
+      body_msg="$(jq -r '.message // empty' /tmp/app.json 2>/dev/null || true)"
+      case "$code" in
+        200) app_json="$(cat /tmp/app.json)" ;;
+        404) fail "Application $ns/$DC_APP not found (check config.app and config.namespace)" ;;
+        401|403) fail "not allowed to read Application $ns/$DC_APP: ${body_msg:-HTTP $code}" ;;
+        000) fail "cannot read Application $ns/$DC_APP: $(tail -1 /tmp/curl.err)" ;;
+        *) fail "cannot read Application $ns/$DC_APP: HTTP $code ${body_msg}" ;;
+      esac
+    fi
+
+    jq -n --argjson app "$app_json" --argjson ignore "$ignore" \
+      --arg reqSync "$DC_REQUIRE_SYNCED" --arg reqHealth "$DC_REQUIRE_HEALTHY" --arg url "$DC_ARGOCD_URL" '
+      ($app.metadata.name) as $name | ($app.metadata.namespace // "") as $ns |
+      ($app.status.sync.status // "Unknown") as $sync |
+      ($app.status.health.status // "Unknown") as $health |
+      [($app.status.resources // [])[]
+        | select(.status != "Synced")
+        | select((.kind as $k | $ignore | index($k)) | not)
+        | {group: (.group // ""), kind, namespace: (.namespace // ""), name, status, health: (.health.status // "")}] as $oos |
+      {app: $name, namespace: $ns, syncStatus: $sync, healthStatus: $health,
+       revision: ($app.status.sync.revision // (($app.status.sync.revisions // []) | join(","))),
+       outOfSync: $oos,
+       drifted: ($reqSync == "true" and ($sync != "Synced" or ($oos | length) > 0)),
+       unhealthy: ($reqHealth == "true" and $health != "Healthy"),
+       links: (if $url != "" then [{url: "\($url | rtrimstr("/"))/applications/\($ns)/\($name)", label: "\($name) in Argo CD"}] else [] end)}
+      ' > "$out"
+
+    jq -r '"Application \(.namespace)/\(.app): sync=\(.syncStatus) health=\(.healthStatus) revision=\(.revision)"' "$out"
+    problems=()
+    if [ "$(jq -r .drifted "$out")" = "true" ]; then
+      problems+=("$(jq -r '"is \(.syncStatus): \(.outOfSync | length) resource(s) differ from git: " +
+        ([.outOfSync[] | "\(if .group == "" then "" else .group + "/" end)\(.kind)/\(if .namespace == "" then "" else .namespace + "/" end)\(.name) (\(.status))"] | join(", "))' "$out")")
+    fi
+    if [ "$(jq -r .unhealthy "$out")" = "true" ]; then
+      problems+=("$(jq -r '"health is \(.healthStatus)"' "$out")")
+    fi
+    if [ "${#problems[@]}" -gt 0 ]; then
+      echo "Promotion blocked: Application $ns/$DC_APP $(IFS=';'; echo "${problems[*]}" | sed 's/;/; /g')." >&2
+      exit 1
+    fi
+    echo "No drift: safe to promote."
+  output:
+    source:
+      type: File
+      path: /tmp/argocd-drift-check.json

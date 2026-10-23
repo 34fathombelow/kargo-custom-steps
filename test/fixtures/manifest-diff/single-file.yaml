@@ -1,0 +1,12 @@
+description: single files work as well as directories
+config:
+  from: before/deployment.yaml
+  to: after/deployment.yaml
+files:
+  before: demo-fixtures/manifest-diff/before
+  after: demo-fixtures/manifest-diff/after
+expect:
+  status: Succeeded
+  output:
+    changed: true
+    summary: {added: 0, removed: 0, modified: 1, unchanged: 0}

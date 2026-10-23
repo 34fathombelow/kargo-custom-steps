@@ -1,0 +1,8 @@
+description: images containing Java artifacts scan offline too (needs the pre-baked Java DB)
+config:
+  image: public.ecr.aws/docker/library/nginx:1.20.0
+  severity: CRITICAL
+expect:
+  status: Failed
+  output:
+    blocked: true

@@ -1,0 +1,37 @@
+# Demo manifests for the deprecated-apis step. The HorizontalPodAutoscaler uses
+# autoscaling/v2beta2: deprecated in Kubernetes 1.23, removed in 1.26.
+# So a 1.25 cluster accepts it (deprecated only), a 1.33 cluster rejects it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: guestbook
+spec:
+  selector:
+    matchLabels:
+      app: guestbook
+  template:
+    metadata:
+      labels:
+        app: guestbook
+    spec:
+      containers:
+      - name: guestbook
+        image: ghcr.io/akuity/guestbook:v0.0.2
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            memory: 128Mi
+---
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: guestbook
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: guestbook
+  minReplicas: 1
+  maxReplicas: 3

@@ -1,0 +1,38 @@
+# guestbook: image Freight for manifest-diff (renders the chart with the new tag)
+# and as a trigger for argocd-drift-check.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Warehouse
+metadata:
+  name: guestbook
+  namespace: custom-steps-release-insight
+  labels:
+    kargo.akuity.io/shard: custom-steps
+spec:
+  shard: custom-steps
+  interval: 5m0s
+  subscriptions:
+  - image:
+      repoURL: ghcr.io/akuity/guestbook
+      imageSelectionStrategy: SemVer
+      constraint: ">=0.0.1"
+      discoveryLimit: 5
+---
+# guestbook-source: commit Freight for release-diff. The newest commit becomes
+# Freight automatically; to try a rollback, create Freight from an older
+# discovered commit in the UI and promote it.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Warehouse
+metadata:
+  name: guestbook-source
+  namespace: custom-steps-release-insight
+  labels:
+    kargo.akuity.io/shard: custom-steps
+spec:
+  shard: custom-steps
+  interval: 5m0s
+  subscriptions:
+  - git:
+      repoURL: https://github.com/akuity/guestbook
+      branch: main
+      commitSelectionStrategy: NewestFromBranch
+      discoveryLimit: 10

@@ -1,0 +1,5 @@
+{"apiVersion":"argoproj.io/v1alpha1","kind":"Application","metadata":{"name":"drift-demo-clean","namespace":"argocd"},
+ "status":{"sync":{"status":"Synced","revision":"59d3b42c8919c74d9619116c9440c96c54ea32de"},"health":{"status":"Healthy"},
+  "resources":[
+   {"version":"v1","kind":"Service","namespace":"drift-demo","name":"guestbook","status":"Synced","health":{"status":"Healthy"}},
+   {"group":"apps","version":"v1","kind":"Deployment","namespace":"drift-demo","name":"guestbook","status":"Synced","health":{"status":"Healthy"}}]}}

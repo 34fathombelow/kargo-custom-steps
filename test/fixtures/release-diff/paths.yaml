@@ -1,0 +1,15 @@
+description: paths limits the log to changes under those directories
+config:
+  repoURL: https://github.com/akuity/guestbook
+  from: c050724c5b18e167efd64603c8675165a95d5d8d
+  to: 59d3b42c8919c74d9619116c9440c96c54ea32de
+  paths: [public]
+expect:
+  status: Succeeded
+  output:
+    commits: 3
+    summary: 3 commit(s) in public
+    log: |
+      4d5f9ab Update index.html (2022-04-07)
+      554c55b Update index.html (#1) (2022-03-30)
+      4067264 Update index.html (2022-03-24)

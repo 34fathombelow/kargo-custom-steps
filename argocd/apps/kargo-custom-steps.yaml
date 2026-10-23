@@ -1,0 +1,37 @@
+# Syncs everything under kargo/ (the custom steps and every group's demo
+# project) into the Kargo control plane, registered in Argo CD as a cluster
+# named "kargo1". Created by argocd/root.yaml.
+#
+# Which demos get synced (see README "Choosing which demos to run"):
+#   - All of them:     leave `directory` as it is (the default).
+#   - Only some:       add `include` listing two patterns per group, e.g.
+#                        include: '{custom-steps/policy/*,projects/policy/*,custom-steps/supply-chain/*,projects/supply-chain/*}'
+#   - All except some: add `exclude` the same way, e.g.
+#                        exclude: '{custom-steps/data/*,projects/data/*}'
+# Patterns are relative to kargo/, and `*` also matches across folders.
+# Groups: policy, supply-chain, manifest-quality, release-insight, data, rendering.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kargo-custom-steps
+  namespace: argocd
+  annotations:
+    # Diff on the server so fields Kargo's webhooks default (and labels and
+    # finalizers its controllers add) don't show up as drift.
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/34fathombelow/kargo-custom-steps.git
+    targetRevision: HEAD
+    path: kargo
+    directory:
+      recurse: true
+  destination:
+    name: kargo1
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - ServerSideApply=true

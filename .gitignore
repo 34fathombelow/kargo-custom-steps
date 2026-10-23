@@ -1,0 +1,14 @@
+# Working files (local planning and Claude context, not part of the catalogue)
+CLAUDE.md
+PLAN.md
+.claude/
+
+# Local step test runs
+.work/
+.env
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,45 @@
+# Renders demo-fixtures/jsonnet-render with the image from the Freight, then
+# checks the result with the built-in yaml-parse step, the same way a later
+# policy gate would consume it.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: PromotionTask
+metadata:
+  name: jsonnet-render
+  namespace: custom-steps-rendering
+spec:
+  vars:
+  - name: repoURL
+    value: https://github.com/34fathombelow/kargo-custom-steps.git
+  - name: image
+    value: ghcr.io/akuity/guestbook
+  - name: replicas
+    value: "2"
+  steps:
+  - uses: git-clone
+    config:
+      repoURL: ${{ vars.repoURL }}
+      checkout:
+      - branch: main
+        path: ./src
+  - uses: jsonnet-render
+    as: render
+    config:
+      path: ./src/demo-fixtures/jsonnet-render/main.jsonnet
+      jpath:
+      - ./src/demo-fixtures/jsonnet-render/lib
+      outPath: ./out
+      extVars:
+        image: ${{ vars.image }}:${{ imageFrom(vars.image).Tag }}
+      tlaVars:
+        replicas: ${{ quote(vars.replicas) }}
+  # Read a value back out of the rendered files to show they are ordinary
+  # YAML that any later step can work with.
+  - uses: yaml-parse
+    as: rendered
+    config:
+      path: ./out/deployment-guestbook.yaml
+      outputs:
+      - name: image
+        fromExpression: spec.template.spec.containers[0].image
+      - name: replicas
+        fromExpression: spec.replicas

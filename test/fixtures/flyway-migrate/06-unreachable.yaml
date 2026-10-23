@@ -1,0 +1,14 @@
+description: an unreachable database fails with a message pointing at the prereq
+config:
+  url: jdbc:postgresql://no-such-db.custom-steps-prereqs.svc:5432/guestbook
+  username: guestbook
+  password: guestbook-demo
+  migrationsPath: ./src/demo-fixtures/flyway-migrate/migrations
+  connectRetries: 0
+files:
+  src/demo-fixtures/flyway-migrate: demo-fixtures/flyway-migrate
+docker: ["--network", "runstep-pg"]
+expect:
+  status: Failed
+  messageContains:
+  - "cannot reach no-such-db.custom-steps-prereqs.svc: is prereqs/flyway-migrate deployed"

@@ -1,0 +1,10 @@
+description: a migrationsPath that was not checked out fails fast
+config:
+  url: jdbc:postgresql://runstep-pg:5432/guestbook
+  username: guestbook
+  password: guestbook-demo
+  migrationsPath: ./src/db/migrations
+expect:
+  status: Failed
+  messageContains:
+  - "migrationsPath ./src/db/migrations not found in the workdir (did an earlier git-clone step check it out?)"

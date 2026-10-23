@@ -1,0 +1,18 @@
+# The policy demo checks manifests from this repo; the image is only a trigger
+# so there is Freight to promote.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Warehouse
+metadata:
+  name: guestbook
+  namespace: custom-steps-policy
+  labels:
+    kargo.akuity.io/shard: custom-steps
+spec:
+  shard: custom-steps
+  interval: 5m0s
+  subscriptions:
+  - image:
+      repoURL: ghcr.io/akuity/guestbook
+      imageSelectionStrategy: SemVer
+      constraint: ">=0.0.1"
+      discoveryLimit: 5

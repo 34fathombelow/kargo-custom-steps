@@ -1,0 +1,105 @@
+# CustomPromotionStep: opa-promotion-gate
+#
+# Applies an OPA/Rego policy to the *promotion itself* rather than to manifests:
+# who is promoting, to which Stage, when, whether it is a rollback, and any
+# facts you pass in (environment, change ticket, ...). Use it for rules such as
+# "only release managers promote to prod", "no prod promotions on Friday
+# afternoon" or "prod needs a change ticket", on top of Kargo's RBAC.
+#
+# Config:
+#   policyPath - workdir-relative Rego file or directory (e.g. from a git-clone)
+#   query      - query to evaluate (default data.kargo.promotion); its value must be an
+#                object with `allow` (bool) and `reasons` (list of strings)
+#   input      - map merged into the input document (e.g. environment, change_ticket)
+#   now        - RFC 3339 time to evaluate instead of the current time (testing)
+#
+# The input document also carries the promotion context, which config.input cannot
+# override: project, stage, promotion, actor, rollback, freight, timestamp, weekday, hour.
+#
+# Output (JSON): allowed, reasons[], input
+apiVersion: ee.kargo.akuity.io/v1alpha1
+kind: CustomPromotionStep
+metadata:
+  name: opa-promotion-gate
+spec:
+  image: ghcr.io/34fathombelow/opa:1.21.2
+  defaultTimeout: 1m
+  defaultErrorThreshold: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+  env:
+  - name: OPA_POLICY_PATH
+    value: ${{ quote(config.policyPath ?? "") }}
+  - name: OPA_QUERY
+    value: ${{ quote(config.query ?? "data.kargo.promotion") }}
+  - name: OPA_INPUT
+    value: ${{ asJSON(config.input ?? {}) }}
+  - name: OPA_NOW
+    value: ${{ quote(config.now ?? "") }}
+  - name: PROMOTION_PROJECT
+    value: ${{ quote(ctx.project) }}
+  - name: PROMOTION_STAGE
+    value: ${{ quote(ctx.stage) }}
+  - name: PROMOTION_NAME
+    value: ${{ quote(ctx.promotion) }}
+  - name: PROMOTION_ACTOR
+    value: ${{ quote(ctx.meta.promotion.actor ?? "") }}
+  - name: PROMOTION_ROLLBACK
+    value: ${{ quote(string(ctx.meta.promotion.rollback ?? false)) }}
+  - name: PROMOTION_FREIGHT
+    value: ${{ asJSON(ctx.targetFreight) }}
+  command:
+  - bash
+  - -c
+  - |
+    set -euo pipefail
+    out=/tmp/opa-promotion-gate.json
+    fail() { echo "opa-promotion-gate: $*" >&2; exit 1; }
+
+    [ -n "$OPA_POLICY_PATH" ] || fail "config.policyPath is required (the Rego policy to evaluate)"
+    [ -e "$OPA_POLICY_PATH" ] || fail "policyPath $OPA_POLICY_PATH not found in the workdir (did an earlier git-clone step check it out?)"
+    extra="$(jq -c 'if type == "object" then . else error end' <<<"$OPA_INPUT" 2>/dev/null)" || fail "config.input must be a map"
+    freight="$(jq -c . <<<"$PROMOTION_FREIGHT" 2>/dev/null)" || freight='{}'
+
+    now="${OPA_NOW:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
+    epoch="$(date -u -d "$now" +%s 2>/dev/null)" || fail "now is not a valid timestamp: $now"
+
+    rollback=false
+    [ "$PROMOTION_ROLLBACK" = "true" ] && rollback=true
+    # config.input first, so the promotion context always wins.
+    jq -n --argjson extra "$extra" --argjson freight "$freight" --argjson rollback "$rollback" \
+      --arg project "$PROMOTION_PROJECT" --arg stage "$PROMOTION_STAGE" \
+      --arg promotion "$PROMOTION_NAME" --arg actor "$PROMOTION_ACTOR" \
+      --arg timestamp "$(date -u -d "@$epoch" +%Y-%m-%dT%H:%M:%SZ)" \
+      --arg weekday "$(date -u -d "@$epoch" +%a)" --argjson hour "$((10#$(date -u -d "@$epoch" +%H)))" \
+      '$extra + {project: $project, stage: $stage, promotion: $promotion, actor: $actor,
+                 rollback: $rollback, freight: $freight,
+                 timestamp: $timestamp, weekday: $weekday, hour: $hour}' > /tmp/input.json
+
+    opa eval --format json --data "$OPA_POLICY_PATH" --input /tmp/input.json "$OPA_QUERY" \
+      >/tmp/opa.json 2>/tmp/opa.stderr || { cat /tmp/opa.stderr >&2; fail "opa eval failed (see the output above)"; }
+    if ! jq -e '.result[0].expressions[0].value | type == "object"' /tmp/opa.json >/dev/null 2>&1; then
+      fail "query $OPA_QUERY is undefined or not an object with allow/reasons; check the policy package name"
+    fi
+
+    jq --slurpfile input /tmp/input.json '
+      .result[0].expressions[0].value as $v
+      | {allowed: ($v.allow == true),
+         reasons: ([($v.reasons // [])[] | tostring]),
+         input: $input[0]}' /tmp/opa.json > "$out"
+
+    if [ "$(jq -r '.allowed' "$out")" = "true" ]; then
+      echo "Promotion allowed by policy $OPA_QUERY."
+      exit 0
+    fi
+    echo "Promotion denied by policy $OPA_QUERY:" >&2
+    jq -r '.reasons[] | "  - " + .' "$out" >&2
+    exit 1
+  output:
+    source:
+      type: File
+      path: /tmp/opa-promotion-gate.json

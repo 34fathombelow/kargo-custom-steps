@@ -1,0 +1,11 @@
+description: re-promoting the deployed revision reports no changes
+config:
+  repoURL: https://github.com/akuity/guestbook
+  from: 59d3b42c8919c74d9619116c9440c96c54ea32de
+  to: 59d3b42c8919c74d9619116c9440c96c54ea32de
+expect:
+  status: Succeeded
+  output:
+    commits: 0
+    rollback: false
+    log: ""

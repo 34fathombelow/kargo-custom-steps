@@ -1,0 +1,13 @@
+description: with requireSynced false only health is checked, and drift is still reported
+config:
+  app: guestbook-prod
+  requireSynced: false
+files:
+  app.json: test/fixtures/argocd-drift-check/apps/drifted.json
+env:
+  DRIFT_CHECK_APP_FILE: /workdir/app.json
+expect:
+  status: Succeeded
+  output:
+    drifted: false
+    syncStatus: OutOfSync

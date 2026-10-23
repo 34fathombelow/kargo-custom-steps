@@ -1,0 +1,129 @@
+# CustomPromotionStep: cosign-verify
+#
+# Verifies that an image carries a valid Sigstore/cosign signature from the
+# signer you expect, and blocks the promotion otherwise. Supports keyless
+# verification (certificate identity + OIDC issuer) and key-based verification.
+#
+# Config:
+#   image                        - image to verify (required). Prefer a digest reference.
+#   certificateIdentity          - keyless: exact signer identity (SAN), or
+#   certificateIdentityRegexp    -   a regular expression for it
+#   certificateOidcIssuer        - keyless: exact OIDC issuer, or
+#   certificateOidcIssuerRegexp  -   a regular expression for it
+#   publicKey                    - key-based: PEM public key (instead of the keyless keys)
+#   username, password           - registry credentials for private images (optional)
+#
+# Output (JSON): verified, image, digest, signatures, identities, logIndexes, links, error
+apiVersion: ee.kargo.akuity.io/v1alpha1
+kind: CustomPromotionStep
+metadata:
+  name: cosign-verify
+spec:
+  image: ghcr.io/34fathombelow/cosign:v3.1.3
+  defaultTimeout: 5m
+  defaultErrorThreshold: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+  env:
+  - name: VERIFY_IMAGE
+    value: ${{ quote(config.image ?? "") }}
+  - name: VERIFY_IDENTITY
+    value: ${{ quote(config.certificateIdentity ?? "") }}
+  - name: VERIFY_IDENTITY_REGEXP
+    value: ${{ quote(config.certificateIdentityRegexp ?? "") }}
+  - name: VERIFY_ISSUER
+    value: ${{ quote(config.certificateOidcIssuer ?? "") }}
+  - name: VERIFY_ISSUER_REGEXP
+    value: ${{ quote(config.certificateOidcIssuerRegexp ?? "") }}
+  - name: VERIFY_PUBLIC_KEY
+    value: ${{ asJSON(config.publicKey ?? "") }}
+  - name: VERIFY_USERNAME
+    value: ${{ asJSON(config.username ?? "") }}
+  - name: VERIFY_PASSWORD
+    value: ${{ asJSON(config.password ?? "") }}
+  command:
+  - bash
+  - -c
+  - |
+    set -euo pipefail
+    # Secrets and free-form values arrive as JSON (asJSON) so quotes, backslashes and newlines survive.
+    VERIFY_PUBLIC_KEY="$(jq -j . <<<"$VERIFY_PUBLIC_KEY")"
+    VERIFY_USERNAME="$(jq -j . <<<"$VERIFY_USERNAME")"
+    VERIFY_PASSWORD="$(jq -j . <<<"$VERIFY_PASSWORD")"
+    out=/tmp/cosign-verify.json
+    fail() { echo "cosign-verify: $*" >&2; exit 1; }
+    trap 'echo "cosign-verify: unexpected error on line $LINENO" >&2' ERR
+    result() { # verified signatures digest error
+      jq -n --arg image "$VERIFY_IMAGE" --argjson verified "$1" --argjson signatures "$2" \
+        --arg digest "$3" --arg error "$4" --argjson ids "${identities:-[]}" --argjson idx "${log_indexes:-[]}" \
+        '{verified: $verified, image: $image, digest: $digest, signatures: $signatures,
+          identities: $ids, logIndexes: $idx, error: $error,
+          links: ($idx | .[:5] | map({url: "https://search.sigstore.dev/?logIndex=\(.)", label: "Rekor entry \(.)",
+                                      tooltip: "Sigstore transparency log entry"}))}' > "$out"
+    }
+
+    [ -n "$VERIFY_IMAGE" ] || fail "config.image is required (e.g. the image from Freight, pinned by digest)"
+    args=(verify --output json)
+    if [ -n "$VERIFY_PUBLIC_KEY" ]; then
+      printf '%s\n' "$VERIFY_PUBLIC_KEY" > /tmp/cosign.pub
+      args+=(--key /tmp/cosign.pub)
+    else
+      [ -n "$VERIFY_IDENTITY$VERIFY_IDENTITY_REGEXP" ] || fail "set config.certificateIdentity or config.certificateIdentityRegexp (keyless), or config.publicKey"
+      [ -n "$VERIFY_ISSUER$VERIFY_ISSUER_REGEXP" ] || fail "set config.certificateOidcIssuer or config.certificateOidcIssuerRegexp (keyless), or config.publicKey"
+      if [ -n "$VERIFY_IDENTITY" ]; then args+=(--certificate-identity "$VERIFY_IDENTITY"); else args+=(--certificate-identity-regexp "$VERIFY_IDENTITY_REGEXP"); fi
+      if [ -n "$VERIFY_ISSUER" ]; then args+=(--certificate-oidc-issuer "$VERIFY_ISSUER"); else args+=(--certificate-oidc-issuer-regexp "$VERIFY_ISSUER_REGEXP"); fi
+    fi
+    if [ -n "$VERIFY_USERNAME" ]; then
+      args+=(--registry-username "$VERIFY_USERNAME" --registry-password "$VERIFY_PASSWORD")
+    fi
+
+    if ! cosign "${args[@]}" "$VERIFY_IMAGE" > /tmp/verify.json 2> /tmp/verify.err; then
+      # Prefer the line that names the actual signer over cosign's generic summary.
+      reason="$(grep -m1 -E '^failed to verify certificate identity' /tmp/verify.err \
+        || grep -m1 -E '^(Error|failed to verify)' /tmp/verify.err || tail -n 1 /tmp/verify.err)"
+      reason="${reason#Error: }"
+      result false 0 "" "$reason"
+      echo "Promotion blocked: $VERIFY_IMAGE failed signature verification: $reason" >&2
+      exit 1
+    fi
+
+    signatures="$(jq 'length' /tmp/verify.json)"
+    digest="$(jq -r '.[0].critical.image["docker-manifest-digest"] // ""' /tmp/verify.json)"
+
+    # Best effort: who signed it, and where it is in the transparency log.
+    identities='[]'; log_indexes='[]'
+    dl_args=()
+    [ -n "$VERIFY_USERNAME" ] && dl_args+=(--registry-username "$VERIFY_USERNAME" --registry-password "$VERIFY_PASSWORD")
+    if cosign download signature "${dl_args[@]}" "$VERIFY_IMAGE" > /tmp/sigs.jsonl 2>/dev/null; then
+      log_indexes="$(jq -s -c '[.[] | (.verificationMaterial.tlogEntries[]?.logIndex // .Bundle.Payload.logIndex // empty) | tostring] | unique' /tmp/sigs.jsonl)"
+      : > /tmp/ids.jsonl
+      while IFS= read -r line; do
+        der="$(jq -r '.verificationMaterial.certificate.rawBytes // empty' <<<"$line")"
+        pem="$(jq -r '.Cert // empty' <<<"$line")"
+        if [ -n "$der" ]; then
+          printf '%s' "$der" | base64 -d > /tmp/cert.der 2>/dev/null || continue
+          openssl x509 -inform der -in /tmp/cert.der -out /tmp/cert.pem 2>/dev/null || continue
+        elif [ -n "$pem" ]; then
+          printf '%s\n' "$pem" > /tmp/cert.pem
+        else
+          continue
+        fi
+        # Best effort: `|| true` because, under pipefail, grep finding nothing (or head
+        # closing the pipe early) would otherwise abort the whole step.
+        subject="$(openssl x509 -in /tmp/cert.pem -noout -ext subjectAltName 2>/dev/null | sed -n '2{s/^ *\(email\|URI\|DNS\):\{0,1\}//;s/^ *//;p;}' || true)"
+        issuer="$(openssl x509 -in /tmp/cert.pem -noout -text 2>/dev/null | grep -A1 -E '1\.3\.6\.1\.4\.1\.57264\.1\.(1|8):' | grep -oE 'https?://[^ ]+' | sed -n 1p || true)"
+        [ -n "$subject" ] && jq -n -c --arg s "$subject" --arg i "$issuer" '{subject: $s, issuer: $i}' >> /tmp/ids.jsonl
+      done < /tmp/sigs.jsonl
+      identities="$(jq -s -c 'unique' /tmp/ids.jsonl)"
+    fi
+
+    result true "$signatures" "$digest" ""
+    echo "Verified $signatures signature(s) on $VERIFY_IMAGE ($digest)."
+  output:
+    source:
+      type: File
+      path: /tmp/cosign-verify.json

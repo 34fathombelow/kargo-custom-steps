@@ -1,0 +1,20 @@
+description: config.input cannot override the promotion context (actor stays the real one)
+config:
+  policyPath: src/policy/opa/promotion
+  now: "2026-11-10T10:00:00Z"
+  input:
+    actor: release-manager@example.com
+    change_ticket: CHG0012345
+ctx:
+  stage: prod-eu
+  meta:
+    promotion:
+      actor: mallory@example.com
+files:
+  src/policy/opa/promotion: policy/opa/promotion
+expect:
+  status: Failed
+  output:
+    allowed: false
+    reasons:
+    - mallory@example.com may not promote to production; only release managers can (oncall-lead@example.com, release-manager@example.com)

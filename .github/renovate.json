@@ -1,0 +1,30 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Tool versions in docker/<tool>/Dockerfile, declared with a '# renovate:' comment",
+      "managerFilePatterns": [
+        "/^docker/.+/Dockerfile$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\nARG [A-Z_]+_VERSION=(?<currentValue>\\S+)"
+      ]
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "A tool bump changes the image tag, so step YAML must be updated in the same PR (make lint enforces it)",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "prBodyNotes": [
+        "Update the image tag in every kargo/custom-steps/*/*/*.yaml that uses this image; `make lint` fails until you do."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,106 @@
+# CustomPromotionStep: trivy-image
+#
+# Scans a container image for known vulnerabilities with Trivy and blocks the
+# promotion when it finds any at the configured severities. The image ships
+# with the vulnerability DB and Java index DB pre-downloaded, so a scan only
+# needs network access to pull the image being scanned.
+#
+# Config:
+#   image          - image to scan (required). Prefer a digest reference, e.g.
+#                    ${{ imageFrom(repo).RepoURL + "@" + imageFrom(repo).Digest }}
+#   severity       - comma-separated severities that block (default CRITICAL)
+#   ignoreUnfixed  - ignore vulnerabilities with no fixed version (default true)
+#   ignorefile     - workdir-relative .trivyignore file (optional)
+#   username, password - registry credentials for private images (optional)
+#
+# Output (JSON): blocked, image, total, counts, vulnerabilities (first 100),
+#   truncated, dbUpdatedAt, links (first 10 advisories)
+apiVersion: ee.kargo.akuity.io/v1alpha1
+kind: CustomPromotionStep
+metadata:
+  name: trivy-image
+spec:
+  image: ghcr.io/34fathombelow/trivy:0.76.0
+  defaultTimeout: 15m
+  defaultErrorThreshold: 1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
+  env:
+  - name: SCAN_IMAGE
+    value: ${{ quote(config.image ?? "") }}
+  - name: SCAN_SEVERITY
+    value: ${{ quote(config.severity ?? "CRITICAL") }}
+  - name: SCAN_IGNORE_UNFIXED
+    value: ${{ quote(string(config.ignoreUnfixed ?? true)) }}
+  - name: SCAN_IGNOREFILE
+    value: ${{ quote(config.ignorefile ?? "") }}
+  - name: SCAN_USERNAME
+    value: ${{ asJSON(config.username ?? "") }}
+  - name: SCAN_PASSWORD
+    value: ${{ asJSON(config.password ?? "") }}
+  command:
+  - bash
+  - -c
+  - |
+    set -euo pipefail
+    # Secrets and free-form values arrive as JSON (asJSON) so quotes, backslashes and newlines survive.
+    SCAN_USERNAME="$(jq -j . <<<"$SCAN_USERNAME")"
+    SCAN_PASSWORD="$(jq -j . <<<"$SCAN_PASSWORD")"
+    report=/tmp/trivy-report.json
+    out=/tmp/trivy-image.json
+    fail() { echo "trivy-image: $*" >&2; exit 1; }
+    trap 'echo "trivy-image: unexpected error on line $LINENO" >&2' ERR
+
+    [ -n "$SCAN_IMAGE" ] || fail "config.image is required (e.g. the image from Freight, pinned by digest)"
+    severity="$(echo "$SCAN_SEVERITY" | tr '[:lower:]' '[:upper:]' | tr -d ' ')"
+    for s in ${severity//,/ }; do
+      case "$s" in UNKNOWN|LOW|MEDIUM|HIGH|CRITICAL) ;; *) fail "invalid severity '$s' (use UNKNOWN, LOW, MEDIUM, HIGH, CRITICAL)" ;; esac
+    done
+
+    args=(image --quiet --format json --output "$report" --severity "$severity" --timeout 10m)
+    [ "$SCAN_IGNORE_UNFIXED" = "true" ] && args+=(--ignore-unfixed)
+    if [ -n "$SCAN_IGNOREFILE" ]; then
+      [ -f "$SCAN_IGNOREFILE" ] || fail "ignorefile $SCAN_IGNOREFILE not found in the workdir (did an earlier git-clone step check it out?)"
+      args+=(--ignorefile "$SCAN_IGNOREFILE")
+    fi
+    if [ -n "$SCAN_USERNAME" ]; then
+      export TRIVY_USERNAME="$SCAN_USERNAME" TRIVY_PASSWORD="$SCAN_PASSWORD"
+    fi
+
+    if ! trivy "${args[@]}" "$SCAN_IMAGE" 2>/tmp/trivy.err; then
+      fail "could not scan $SCAN_IMAGE: $(tail -n 3 /tmp/trivy.err)"
+    fi
+
+    db_updated="$(trivy version --format json 2>/dev/null | jq -r '.VulnerabilityDB.UpdatedAt // empty' || true)"
+    jq --arg image "$SCAN_IMAGE" --arg db "$db_updated" '
+      ([.Results[]?.Vulnerabilities[]?]
+        | unique_by([.VulnerabilityID, .PkgName, .InstalledVersion])
+        | sort_by(.Severity, .VulnerabilityID)) as $v
+      | {
+          blocked: ($v | length > 0),
+          image: $image,
+          total: ($v | length),
+          counts: ($v | group_by(.Severity) | map({key: .[0].Severity, value: length}) | from_entries),
+          vulnerabilities: ($v[:100] | map({id: .VulnerabilityID, pkg: .PkgName, installed: .InstalledVersion,
+                                           fixed: (.FixedVersion // ""), severity: .Severity, title: (.Title // "")})),
+          truncated: ($v | length > 100),
+          dbUpdatedAt: $db,
+          links: ($v | map(select((.PrimaryURL // "") | test("^https?://"))) | unique_by(.VulnerabilityID)
+                    | .[:10] | map({url: .PrimaryURL, label: .VulnerabilityID, tooltip: ((.PkgName) + " " + (.InstalledVersion))}))
+        }' "$report" > "$out"
+
+    total="$(jq -r .total "$out")"
+    if [ "$total" -eq 0 ]; then
+      echo "No $severity vulnerabilities found in $SCAN_IMAGE (vulnerability DB updated $db_updated)."
+      exit 0
+    fi
+    echo "Promotion blocked: $total $severity vulnerabilities in $SCAN_IMAGE: $(jq -r '[.vulnerabilities[:5][] | "\(.id) (\(.pkg))"] | join(", ")' "$out")$( [ "$total" -gt 5 ] && echo ', ...')" >&2
+    exit 1
+  output:
+    source:
+      type: File
+      path: /tmp/trivy-image.json

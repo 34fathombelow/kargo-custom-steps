@@ -1,0 +1,17 @@
+description: live resources that differ from git block the promotion and are listed
+config:
+  app: guestbook-prod
+files:
+  app.json: test/fixtures/argocd-drift-check/apps/drifted.json
+env:
+  DRIFT_CHECK_APP_FILE: /workdir/app.json
+expect:
+  status: Failed
+  output:
+    drifted: true
+    syncStatus: OutOfSync
+    outOfSync:
+    - {group: apps, kind: Deployment, namespace: prod, name: guestbook, status: OutOfSync, health: Healthy}
+    - {group: batch, kind: Job, namespace: prod, name: migrate, status: OutOfSync, health: ""}
+  messageContains:
+  - "Promotion blocked: Application argocd/guestbook-prod is OutOfSync: 2 resource(s) differ from git: apps/Deployment/prod/guestbook (OutOfSync), batch/Job/prod/migrate (OutOfSync)."

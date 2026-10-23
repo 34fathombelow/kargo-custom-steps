@@ -1,0 +1,10 @@
+description: a path that no earlier step produced names the missing prerequisite
+config:
+  path: out
+  policyPath: src/policy/kyverno
+files:
+  src/policy/kyverno: policy/kyverno
+expect:
+  status: Failed
+  messageContains:
+  - "path out not found in the workdir (did an earlier step render the manifests?)"

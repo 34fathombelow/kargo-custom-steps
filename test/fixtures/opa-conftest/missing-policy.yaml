@@ -1,0 +1,9 @@
+description: neither policyPath nor policyURL is a clear configuration error
+config:
+  path: src/demo-fixtures/policy/compliant
+files:
+  src/demo-fixtures/policy: demo-fixtures/policy
+expect:
+  status: Failed
+  messageContains:
+  - "config.policyPath or config.policyURL is required"

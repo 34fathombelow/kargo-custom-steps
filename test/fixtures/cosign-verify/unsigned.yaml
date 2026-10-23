@@ -1,0 +1,12 @@
+description: an unsigned image blocks the promotion
+config:
+  image: ghcr.io/akuity/guestbook:v0.0.2
+  certificateIdentityRegexp: .*
+  certificateOidcIssuerRegexp: .*
+expect:
+  status: Failed
+  output:
+    verified: false
+    error: no signatures found
+  messageContains:
+  - "no signatures found"

@@ -1,0 +1,26 @@
+# Violates the demo policies on purpose: ":latest" tag, no resource limits,
+# privileged container, runs as root.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: guestbook
+  labels:
+    app: guestbook
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: guestbook
+  template:
+    metadata:
+      labels:
+        app: guestbook
+    spec:
+      containers:
+      - name: guestbook
+        image: ghcr.io/akuity/guestbook:latest
+        ports:
+        - containerPort: 8080
+        securityContext:
+          privileged: true
+          runAsUser: 0

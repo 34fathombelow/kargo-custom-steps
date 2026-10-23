@@ -1,0 +1,26 @@
+# Satisfies every deny rule but trips the "fewer than 2 replicas" warning.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: single
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: single
+  template:
+    metadata:
+      labels:
+        app: single
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+      - name: app
+        image: ghcr.io/akuity/guestbook:v0.0.2
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            memory: 64Mi

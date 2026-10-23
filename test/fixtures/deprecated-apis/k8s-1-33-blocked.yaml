@@ -1,0 +1,15 @@
+description: at 1.33 the v2beta2 HPA is removed, so the promotion is blocked with the replacement named
+config:
+  path: ./out
+  k8sVersion: "1.33"
+files:
+  out: demo-fixtures/deprecated-apis/manifests
+expect:
+  status: Failed
+  output:
+    passed: false
+    targetVersion: v1.33.0
+    counts: {removed: 1, deprecated: 0}
+  messageContains:
+  - "REMOVED     HorizontalPodAutoscaler guestbook uses autoscaling/v2beta2 (removed in v1.26.0, use autoscaling/v2)"
+  - "Promotion blocked: 1 removed and 0 deprecated API(s) for Kubernetes v1.33.0"

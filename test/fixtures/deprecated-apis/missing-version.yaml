@@ -1,0 +1,9 @@
+description: without k8sVersion the step fails instead of guessing a version
+config:
+  path: ./out
+files:
+  out: demo-fixtures/deprecated-apis/clean
+expect:
+  status: Failed
+  messageContains:
+  - "config.k8sVersion is required"

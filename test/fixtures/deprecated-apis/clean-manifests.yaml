@@ -1,0 +1,12 @@
+description: manifests using only current APIs pass even at a recent version
+config:
+  path: ./out
+  k8sVersion: v1.35.0
+files:
+  out: demo-fixtures/deprecated-apis/clean
+expect:
+  status: Succeeded
+  output:
+    passed: true
+    removed: []
+    deprecated: []

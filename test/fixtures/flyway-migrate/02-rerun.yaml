@@ -1,0 +1,15 @@
+description: promoting the same Freight again is a no-op (idempotent, retry-safe)
+config:
+  url: jdbc:postgresql://runstep-pg:5432/guestbook
+  username: guestbook
+  password: guestbook-demo
+  migrationsPath: ./src/demo-fixtures/flyway-migrate/migrations
+files:
+  src/demo-fixtures/flyway-migrate: demo-fixtures/flyway-migrate
+docker: ["--network", "runstep-pg"]
+expect:
+  status: Succeeded
+  output:
+    migrationsApplied: 0
+    schemaVersion: "3"
+    applied: []

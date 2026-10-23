@@ -1,0 +1,27 @@
+# Checks manifests against the Kyverno policies in policy/kyverno.
+# vars.manifests picks demo-fixtures/policy/<compliant|violating> so the demo
+# shows both outcomes; in real use, point path at the output of helm-template
+# or kustomize-build.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: PromotionTask
+metadata:
+  name: kyverno-apply
+  namespace: custom-steps-policy
+spec:
+  vars:
+  - name: repoURL
+    value: https://github.com/34fathombelow/kargo-custom-steps.git
+  - name: manifests
+    value: compliant
+  steps:
+  - uses: git-clone
+    config:
+      repoURL: ${{ vars.repoURL }}
+      checkout:
+      - branch: main
+        path: ./src
+  - uses: kyverno-apply
+    as: kyverno
+    config:
+      path: ./src/demo-fixtures/policy/${{ vars.manifests }}
+      policyPath: ./src/policy/kyverno

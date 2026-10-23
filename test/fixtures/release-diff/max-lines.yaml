@@ -1,0 +1,12 @@
+description: the log is capped at maxLines with a "... N more" marker
+config:
+  repoURL: https://github.com/akuity/guestbook
+  from: 4067264
+  to: 59d3b42
+  maxLines: 2
+expect:
+  status: Succeeded
+  output:
+    commits: 9
+  messageContains:
+  - "... 7 more"

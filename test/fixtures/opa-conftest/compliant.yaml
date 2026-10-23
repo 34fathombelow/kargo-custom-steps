@@ -1,0 +1,14 @@
+description: compliant manifests pass; no failures or warnings
+config:
+  path: src/demo-fixtures/policy/compliant
+  policyPath: src/policy/opa/conftest
+files:
+  src/demo-fixtures/policy: demo-fixtures/policy
+  src/policy/opa/conftest: policy/opa/conftest
+expect:
+  status: Succeeded
+  output:
+    passed: true
+    summary: {files: 2, successes: 10, failures: 0, warnings: 0}
+    failures: []
+    warnings: []

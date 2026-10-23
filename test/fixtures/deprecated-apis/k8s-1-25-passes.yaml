@@ -1,0 +1,12 @@
+description: at 1.25 the v2beta2 HPA is only deprecated, so the default failOn=removed passes
+config:
+  path: ./out
+  k8sVersion: v1.25.0
+files:
+  out: demo-fixtures/deprecated-apis/manifests
+expect:
+  status: Succeeded
+  output:
+    passed: true
+    targetVersion: v1.25.0
+    counts: {removed: 0, deprecated: 1}

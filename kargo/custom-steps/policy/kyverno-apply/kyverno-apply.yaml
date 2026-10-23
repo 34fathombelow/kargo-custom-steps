@@ -1,0 +1,89 @@
+# CustomPromotionStep: kyverno-apply
+#
+# Checks rendered manifests against Kyverno policies with the Kyverno CLI, before
+# they are committed or synced. Policies come from files (typically the same
+# policies your clusters enforce, kept in git), so no Kyverno installation is
+# needed anywhere for this step.
+#
+# Config:
+#   path        - workdir-relative manifest file or directory (e.g. ./out from helm-template)
+#   policyPath  - workdir-relative policy file or directory (e.g. from a git-clone)
+#   failOn      - "fail" (default): block on failed or errored rules;
+#                 "warn": also block on warnings (Audit-mode policies report as warnings)
+#
+# Output (JSON): passed, summary {pass, fail, warn, error, skip}, violations[]
+apiVersion: ee.kargo.akuity.io/v1alpha1
+kind: CustomPromotionStep
+metadata:
+  name: kyverno-apply
+spec:
+  image: ghcr.io/34fathombelow/kyverno:v1.19.1
+  defaultTimeout: 5m
+  defaultErrorThreshold: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  env:
+  - name: KYVERNO_RESOURCES
+    value: ${{ quote(config.path ?? "") }}
+  - name: KYVERNO_POLICIES
+    value: ${{ quote(config.policyPath ?? "") }}
+  - name: KYVERNO_FAIL_ON
+    value: ${{ quote(config.failOn ?? "fail") }}
+  command:
+  - bash
+  - -c
+  - |
+    set -euo pipefail
+    out=/tmp/kyverno-apply.json
+    fail() { echo "kyverno-apply: $*" >&2; exit 1; }
+
+    [ -n "$KYVERNO_RESOURCES" ] || fail "config.path is required (the rendered manifests to check)"
+    [ -n "$KYVERNO_POLICIES" ] || fail "config.policyPath is required (the Kyverno policies to apply)"
+    [ -e "$KYVERNO_RESOURCES" ] || fail "path $KYVERNO_RESOURCES not found in the workdir (did an earlier step render the manifests?)"
+    [ -e "$KYVERNO_POLICIES" ] || fail "policyPath $KYVERNO_POLICIES not found in the workdir (did an earlier git-clone step check it out?)"
+    case "$KYVERNO_FAIL_ON" in fail|warn) ;; *) fail "failOn must be \"fail\" or \"warn\", got \"$KYVERNO_FAIL_ON\"" ;; esac
+
+    # The CLI exits 1 on any failure; the report tells us why, so ignore the code.
+    # Deprecation warnings are printed on stdout ahead of the JSON report.
+    kyverno apply "$KYVERNO_POLICIES" --resource "$KYVERNO_RESOURCES" \
+      --policy-report --output-format json --audit-warn --remove-color \
+      >/tmp/kyverno.stdout 2>/tmp/kyverno.stderr || true
+    sed -n '/^{/,$p' /tmp/kyverno.stdout > /tmp/kyverno-report.json
+    if ! jq -e '.summary' /tmp/kyverno-report.json >/dev/null 2>&1; then
+      cat /tmp/kyverno.stdout /tmp/kyverno.stderr >&2
+      fail "the Kyverno CLI did not produce a policy report (see the output above)"
+    fi
+
+    jq --arg failOn "$KYVERNO_FAIL_ON" '
+      (.summary // {}) as $s
+      | {pass: ($s.pass // 0), fail: ($s.fail // 0), warn: ($s.warn // 0),
+         error: ($s.error // 0), skip: ($s.skip // 0)} as $summary
+      | {
+          passed: (($summary.fail + $summary.error) == 0
+                   and ($failOn != "warn" or $summary.warn == 0)),
+          summary: $summary,
+          violations: [
+            (.results // [])[]
+            | select(.result == "fail" or .result == "warn" or .result == "error")
+            | {policy, rule, result,
+               resource: ((.resources // [])
+                          | map([.kind, .namespace, .name] | map(select(. != null and . != "")) | join("/"))
+                          | join(", ")),
+               message}
+          ][:200]
+        }' /tmp/kyverno-report.json > "$out"
+
+    jq -r '"Kyverno: \(.summary.pass) pass, \(.summary.fail) fail, \(.summary.warn) warn, \(.summary.error) error, \(.summary.skip) skip"' "$out"
+    jq -r '.violations[] | "  [\(.result)] \(.policy)/\(.rule) \(.resource): \(.message)"' "$out"
+    if [ "$(jq -r '.passed' "$out")" != "true" ]; then
+      echo "Promotion blocked by Kyverno policy violations (failOn: $KYVERNO_FAIL_ON)." >&2
+      exit 1
+    fi
+  output:
+    source:
+      type: File
+      path: /tmp/kyverno-apply.json

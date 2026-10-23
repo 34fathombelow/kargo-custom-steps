@@ -1,0 +1,9 @@
+description: a revision that does not exist fails with a clear message
+config:
+  repoURL: https://github.com/akuity/guestbook
+  from: c0a3f0d
+  to: deadbeefdeadbeef
+expect:
+  status: Failed
+  messageContains:
+  - "revision deadbeefdeadbeef (to) not found in the repository"

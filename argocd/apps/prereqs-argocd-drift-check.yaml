@@ -1,0 +1,23 @@
+# Demo prerequisite for the release-insight group: the two sample Argo CD
+# Applications that the argocd-drift-check step inspects. They are Application
+# resources, so they go to Argo CD itself (in-cluster, namespace argocd). They
+# must live in the Argo CD that the custom-steps shard's promotion pods reach
+# through the access-argocd capability.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kargo-custom-steps-prereq-drift-apps
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/34fathombelow/kargo-custom-steps.git
+    targetRevision: HEAD
+    path: prereqs/argocd-drift-check
+  destination:
+    name: in-cluster
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

@@ -1,0 +1,8 @@
+description: an entry file no earlier step checked out names the missing prerequisite
+config:
+  path: ./src/main.jsonnet
+  outPath: ./out
+expect:
+  status: Failed
+  messageContains:
+  - "not found in the workdir (did an earlier git-clone step check it out?)"

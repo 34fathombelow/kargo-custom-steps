@@ -1,0 +1,142 @@
+# CustomPromotionStep: manifest-diff
+#
+# Shows exactly what a promotion changes in the rendered Kubernetes manifests:
+# a semantic (dyff) diff between two render outputs in the workdir, e.g. the
+# manifests rendered for what the Stage runs now vs. for the Freight being
+# promoted. The `markdown` output is ready to show to reviewers.
+#
+# Config:
+#   from                - workdir-relative file or directory (current render) (required)
+#   to                  - workdir-relative file or directory (new render) (required)
+#   failOnChange        - fail the step when anything changed (default false)
+#   ignoreOrderChanges  - ignore reordered list entries/documents (default true)
+#   maxBytes            - cap on the diff text kept in the output (default 60000)
+# Directories: every *.yaml / *.yml file under them, sorted by path, is
+# concatenated into one multi-document stream before diffing.
+#
+# Output (JSON): changed, summary {added, removed, modified, unchanged},
+#   added[], removed[], modified[] (resource ids), diff (text), truncated, markdown
+apiVersion: ee.kargo.akuity.io/v1alpha1
+kind: CustomPromotionStep
+metadata:
+  name: manifest-diff
+spec:
+  image: ghcr.io/34fathombelow/dyff:v1.12.0
+  defaultTimeout: 2m
+  defaultErrorThreshold: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+  env:
+  - name: DIFF_FROM
+    value: ${{ quote(config.from ?? "") }}
+  - name: DIFF_TO
+    value: ${{ quote(config.to ?? "") }}
+  - name: DIFF_FAIL_ON_CHANGE
+    value: ${{ quote(string(config.failOnChange ?? false)) }}
+  - name: DIFF_IGNORE_ORDER
+    value: ${{ quote(string(config.ignoreOrderChanges ?? true)) }}
+  - name: DIFF_MAX_BYTES
+    value: ${{ quote(string(config.maxBytes ?? 60000)) }}
+  command:
+  - bash
+  - -c
+  - |
+    set -euo pipefail
+    out=/tmp/manifest-diff.json
+    fail() { echo "manifest-diff: $*" >&2; exit 1; }
+
+    [ -n "$DIFF_FROM" ] || fail "config.from is required (workdir-relative file or directory with the current manifests)"
+    [ -n "$DIFF_TO" ] || fail "config.to is required (workdir-relative file or directory with the new manifests)"
+    [[ "$DIFF_MAX_BYTES" =~ ^[0-9]+$ ]] || fail "config.maxBytes must be a number, got: $DIFF_MAX_BYTES"
+
+    # Gather one multi-document YAML stream per side.
+    collect() {
+      local src="$1" dest="$2" f
+      : > "$dest"
+      if [ -d "$src" ]; then
+        local n=0
+        while IFS= read -r f; do
+          printf -- '---\n' >> "$dest"; cat "$f" >> "$dest"; printf '\n' >> "$dest"; n=$((n + 1))
+        done < <(find "$src" -type f \( -name '*.yaml' -o -name '*.yml' \) | LC_ALL=C sort)
+        [ "$n" -gt 0 ] || fail "no *.yaml or *.yml files under $src"
+      elif [ -f "$src" ]; then
+        cat "$src" > "$dest"
+      else
+        fail "$src not found in the workdir (did an earlier step such as helm-template or kustomize-build render it?)"
+      fi
+    }
+    collect "$DIFF_FROM" /tmp/from.yaml
+    collect "$DIFF_TO" /tmp/to.yaml
+
+    # Resource-level summary: identify documents by apiVersion/kind/namespace/name.
+    docs() {
+      dyff json --plain /tmp/"$1".yaml 2>/dev/null \
+        | jq -c 'select(type == "object")' \
+        | jq -cs 'to_entries | map({
+            id: (if .value.kind then "\(.value.apiVersion)/\(.value.kind)/\(.value.metadata.namespace // "")/\(.value.metadata.name // "")" | sub("//"; "/")
+                 else "document #\(.key + 1)" end),
+            doc: .value})' \
+        || fail "could not parse $1 manifests as YAML"
+    }
+    from_docs="$(docs from)"; to_docs="$(docs to)"
+    summary="$(jq -cn --argjson a "$from_docs" --argjson b "$to_docs" '
+      ($a | map({(.id): .doc}) | add // {}) as $A | ($b | map({(.id): .doc}) | add // {}) as $B |
+      {added: [$B | keys[] | select($A[.] == null)],
+       removed: [$A | keys[] | select($B[.] == null)],
+       modified: [$A | keys[] | select($B[.] != null and $A[.] != $B[.])],
+       unchanged: [$A | keys[] | select($B[.] != null and $A[.] == $B[.])] | length}')"
+
+    # Human-readable diff.
+    args=(between --omit-header --no-table-style --color off --set-exit-code)
+    [ "$DIFF_IGNORE_ORDER" = "true" ] && args+=(--ignore-order-changes)
+    set +e
+    dyff "${args[@]}" /tmp/from.yaml /tmp/to.yaml > /tmp/diff.txt 2> /tmp/dyff.err
+    rc=$?
+    set -e
+    case "$rc" in
+      0) changed=false ;;
+      1) changed=true ;;
+      *) fail "dyff failed: $(cat /tmp/dyff.err)" ;;
+    esac
+    truncated=false
+    if [ "$(wc -c < /tmp/diff.txt)" -gt "$DIFF_MAX_BYTES" ]; then
+      head -c "$DIFF_MAX_BYTES" /tmp/diff.txt > /tmp/diff.cut
+      printf '\n... diff truncated at %s bytes\n' "$DIFF_MAX_BYTES" >> /tmp/diff.cut
+      mv /tmp/diff.cut /tmp/diff.txt
+      truncated=true
+    fi
+    # Tidy dyff's layout: strip trailing spaces, squeeze blank runs, drop leading blank lines.
+    sed -e 's/[[:space:]]*$//' /tmp/diff.txt | awk 'NF || !blank++ { print } NF { blank = 0 }' | sed -e '/./,$!d' > /tmp/diff.tidy
+    mv /tmp/diff.tidy /tmp/diff.txt
+
+    jq -n --argjson changed "$changed" --argjson truncated "$truncated" --argjson s "$summary" \
+      --rawfile diff /tmp/diff.txt --arg from "$DIFF_FROM" --arg to "$DIFF_TO" '
+      {changed: $changed,
+       summary: {added: ($s.added | length), removed: ($s.removed | length),
+                 modified: ($s.modified | length), unchanged: $s.unchanged},
+       added: $s.added, removed: $s.removed, modified: $s.modified,
+       diff: $diff, truncated: $truncated} |
+      .markdown = (
+        "### Manifest changes\n\n" +
+        (if $changed then
+           "\(.summary.added) added, \(.summary.removed) removed, \(.summary.modified) modified, \(.summary.unchanged) unchanged.\n\n```\n\($diff)```\n"
+         else "No changes between `\($from)` and `\($to)`.\n" end))' > "$out"
+
+    if [ "$changed" = "true" ]; then
+      jq -r '"Manifests changed: \(.summary.added) added, \(.summary.removed) removed, \(.summary.modified) modified."' "$out"
+      cat /tmp/diff.txt
+      if [ "$DIFF_FAIL_ON_CHANGE" = "true" ]; then
+        echo "manifest-diff: manifests changed and failOnChange is true" >&2
+        exit 1
+      fi
+    else
+      echo "No manifest changes."
+    fi
+  output:
+    source:
+      type: File
+      path: /tmp/manifest-diff.json

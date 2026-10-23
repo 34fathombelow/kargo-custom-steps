@@ -1,0 +1,38 @@
+# Every image the supply-chain demo inspects, each pinned to one tag so the
+# outcomes are reproducible:
+#   alpine 3.24.2   - current; no fixable CRITICAL vulnerabilities  -> trivy-pass
+#   nginx 1.20.0    - from 2021; many CRITICAL vulnerabilities      -> trivy-blocked
+#   cosign v3.1.3   - keyless-signed by the Sigstore project       -> cosign-verified
+#   guestbook 0.0.2 - not signed                                    -> cosign-unsigned
+# Docker Hub images come from the public.ecr.aws mirror to avoid rate limits.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Warehouse
+metadata:
+  name: images
+  namespace: custom-steps-supply-chain
+  labels:
+    kargo.akuity.io/shard: custom-steps
+spec:
+  shard: custom-steps
+  interval: 5m0s
+  subscriptions:
+  - image:
+      repoURL: public.ecr.aws/docker/library/alpine
+      imageSelectionStrategy: SemVer
+      constraint: "3.24.2"
+      discoveryLimit: 1
+  - image:
+      repoURL: public.ecr.aws/docker/library/nginx
+      imageSelectionStrategy: SemVer
+      constraint: "1.20.0"
+      discoveryLimit: 1
+  - image:
+      repoURL: ghcr.io/sigstore/cosign/cosign
+      imageSelectionStrategy: SemVer
+      constraint: "3.1.3"
+      discoveryLimit: 1
+  - image:
+      repoURL: ghcr.io/akuity/guestbook
+      imageSelectionStrategy: SemVer
+      constraint: "0.0.2"
+      discoveryLimit: 1

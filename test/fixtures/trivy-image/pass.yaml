@@ -1,0 +1,10 @@
+description: a current minimal image has no fixable CRITICAL vulnerabilities, so the promotion proceeds
+config:
+  image: public.ecr.aws/docker/library/alpine:3.24.2
+expect:
+  status: Succeeded
+  output:
+    blocked: false
+    total: 0
+    counts: {}
+  outputKeys: [dbUpdatedAt, links]

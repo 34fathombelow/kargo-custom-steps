@@ -1,0 +1,8 @@
+description: a render that is not in the workdir names the missing prerequisite
+config:
+  from: out/current
+  to: out/new
+expect:
+  status: Failed
+  messageContains:
+  - "out/current not found in the workdir (did an earlier step such as helm-template or kustomize-build render it?)"

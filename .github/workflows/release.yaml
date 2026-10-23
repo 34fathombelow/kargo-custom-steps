@@ -1,0 +1,36 @@
+name: Release
+
+# On a v* tag, publishes the custom steps as GitHub Release assets, with every
+# image reference pinned to its digest so a release is reproducible:
+#   kargo-custom-steps.yaml  all steps
+#   <step>.yaml              one asset per step
+# To use them, copy the YAML into the git repository your Argo CD syncs into Kargo.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+    - name: Pin images to digests
+      run: |
+        mkdir -p dist
+        for f in kargo/custom-steps/*/*/*.yaml; do
+          step="$(basename "$f" .yaml)"
+          image="$(yq '.spec.image' "$f")"
+          digest="$(docker buildx imagetools inspect "$image" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          [ -n "$digest" ] || { echo "cannot resolve $image" >&2; exit 1; }
+          yq ".spec.image = \"${image}@${digest}\"" "$f" > "dist/${step}.yaml"
+        done
+        for f in dist/*.yaml; do echo "---"; cat "$f"; done > dist/kargo-custom-steps.yaml
+    - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+      with:
+        files: dist/*.yaml
+        generate_release_notes: true

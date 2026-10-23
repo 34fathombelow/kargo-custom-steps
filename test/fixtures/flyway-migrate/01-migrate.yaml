@@ -1,0 +1,15 @@
+description: first promotion applies every migration
+config:
+  url: jdbc:postgresql://runstep-pg:5432/guestbook
+  username: guestbook
+  password: guestbook-demo
+  migrationsPath: ./src/demo-fixtures/flyway-migrate/migrations
+files:
+  src/demo-fixtures/flyway-migrate: demo-fixtures/flyway-migrate
+docker: ["--network", "runstep-pg"]
+expect:
+  status: Succeeded
+  output:
+    migrationsApplied: 3
+    schemaVersion: "3"
+    rollback: false

@@ -1,0 +1,18 @@
+# The rendered Deployment uses this image, so a new guestbook tag produces new
+# Freight and a new render.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Warehouse
+metadata:
+  name: guestbook
+  namespace: custom-steps-rendering
+  labels:
+    kargo.akuity.io/shard: custom-steps
+spec:
+  shard: custom-steps
+  interval: 5m0s
+  subscriptions:
+  - image:
+      repoURL: ghcr.io/akuity/guestbook
+      imageSelectionStrategy: SemVer
+      constraint: ">=0.0.1"
+      discoveryLimit: 5

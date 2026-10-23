@@ -1,0 +1,121 @@
+# CustomPromotionStep: opa-conftest
+#
+# Tests rendered manifests (or any structured config: Terraform, Dockerfiles,
+# JSON, ...) against OPA/Rego policies with conftest. `deny`/`violation` rules
+# block the promotion; `warn` rules are reported and only block with failOnWarn.
+# Results are structured output; policies come from either the workdir or a
+# remote bundle.
+#
+# Config:
+#   path         - workdir-relative file or directory to test
+#   policyPath   - workdir-relative Rego directory (e.g. from a git-clone), or
+#   policyURL    - remote policies fetched with `conftest pull` (https://, git::, oci://)
+#   namespaces   - Rego packages to evaluate (default ["main"]); ["*"] for all
+#   dataPath     - optional workdir-relative data file/dir exposed to the policies as data.*
+#   failOnWarn   - also block on warnings (default false)
+#
+# Output (JSON): passed, summary {files, successes, failures, warnings}, failures[], warnings[]
+apiVersion: ee.kargo.akuity.io/v1alpha1
+kind: CustomPromotionStep
+metadata:
+  name: opa-conftest
+spec:
+  image: ghcr.io/34fathombelow/conftest:v0.71.1
+  defaultTimeout: 5m
+  defaultErrorThreshold: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+  env:
+  - name: CONFTEST_PATH
+    value: ${{ quote(config.path ?? "") }}
+  - name: CONFTEST_POLICY_PATH
+    value: ${{ quote(config.policyPath ?? "") }}
+  - name: CONFTEST_POLICY_URL
+    value: ${{ quote(config.policyURL ?? "") }}
+  - name: CONFTEST_NAMESPACES
+    value: ${{ asJSON(config.namespaces ?? ["main"]) }}
+  - name: CONFTEST_DATA_PATH
+    value: ${{ quote(config.dataPath ?? "") }}
+  - name: CONFTEST_FAIL_ON_WARN
+    value: ${{ quote(string(config.failOnWarn ?? false)) }}
+  command:
+  - bash
+  - -c
+  - |
+    set -euo pipefail
+    out=/tmp/opa-conftest.json
+    fail() { echo "opa-conftest: $*" >&2; exit 1; }
+
+    [ -n "$CONFTEST_PATH" ] || fail "config.path is required (the files to test)"
+    [ -e "$CONFTEST_PATH" ] || fail "path $CONFTEST_PATH not found in the workdir (did an earlier step render the manifests?)"
+    if [ -n "$CONFTEST_POLICY_PATH" ] && [ -n "$CONFTEST_POLICY_URL" ]; then
+      fail "set either config.policyPath or config.policyURL, not both"
+    fi
+    if [ -n "$CONFTEST_POLICY_URL" ]; then
+      # `conftest pull --policy` joins even an absolute path onto the cwd
+      # (/tmp/policy from /tmp becomes /tmp/tmp/policy), so pull from /tmp
+      # with a relative path.
+      policy=/tmp/pulled-policy
+      (cd /tmp && conftest pull --policy pulled-policy "$CONFTEST_POLICY_URL") >&2 \
+        || fail "could not fetch policies from $CONFTEST_POLICY_URL"
+      [ -n "$(ls -A "$policy" 2>/dev/null)" ] || fail "no policies were downloaded from $CONFTEST_POLICY_URL"
+    elif [ -n "$CONFTEST_POLICY_PATH" ]; then
+      policy="$CONFTEST_POLICY_PATH"
+      [ -e "$policy" ] || fail "policyPath $policy not found in the workdir (did an earlier git-clone step check it out?)"
+    else
+      fail "config.policyPath or config.policyURL is required"
+    fi
+
+    namespaces="$(jq -c 'if type == "array" and length > 0 then . else error end' <<<"$CONFTEST_NAMESPACES" 2>/dev/null)" \
+      || fail "config.namespaces must be a non-empty list"
+    args=(--no-color --output json --policy "$policy")
+    if [ "$namespaces" = '["*"]' ]; then
+      args+=(--all-namespaces)
+    else
+      while IFS= read -r ns; do args+=(--namespace "$ns"); done < <(jq -r '.[]' <<<"$namespaces")
+    fi
+    if [ -n "$CONFTEST_DATA_PATH" ]; then
+      [ -e "$CONFTEST_DATA_PATH" ] || fail "dataPath $CONFTEST_DATA_PATH not found in the workdir"
+      args+=(--data "$CONFTEST_DATA_PATH")
+    fi
+
+    # conftest exits 1 when a policy fails; the JSON says why.
+    conftest test "${args[@]}" "$CONFTEST_PATH" >/tmp/conftest.json 2>/tmp/conftest.stderr || true
+    if ! jq -e 'type == "array"' /tmp/conftest.json >/dev/null 2>&1; then
+      cat /tmp/conftest.json /tmp/conftest.stderr >&2
+      fail "conftest did not produce results (see the output above)"
+    fi
+
+    jq --arg failOnWarn "$CONFTEST_FAIL_ON_WARN" '
+      def results($key): [.[] | {file: .filename, namespace} as $f
+                               | ((.[$key] // []) | map($f + {message: .msg}))] | add // [];
+      . as $report
+      | ($report | results("failures")) as $failures
+      | ($report | results("warnings")) as $warnings
+      | {
+          passed: (($failures | length) == 0 and ($failOnWarn != "true" or ($warnings | length) == 0)),
+          summary: {
+            files: ($report | map(.filename) | unique | length),
+            successes: ($report | map(.successes // 0) | add // 0),
+            failures: ($failures | length),
+            warnings: ($warnings | length)
+          },
+          failures: $failures[:200],
+          warnings: $warnings[:200]
+        }' /tmp/conftest.json > "$out"
+
+    jq -r '"conftest: \(.summary.files) file(s), \(.summary.successes) passed, \(.summary.failures) failure(s), \(.summary.warnings) warning(s)"' "$out"
+    jq -r '.failures[] | "  FAIL \(.file): \(.message)"' "$out"
+    jq -r '.warnings[] | "  WARN \(.file): \(.message)"' "$out"
+    if [ "$(jq -r '.passed' "$out")" != "true" ]; then
+      echo "Promotion blocked by conftest policy failures." >&2
+      exit 1
+    fi
+  output:
+    source:
+      type: File
+      path: /tmp/opa-conftest.json

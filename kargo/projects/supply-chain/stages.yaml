@@ -1,0 +1,120 @@
+# Stages for the supply-chain demo. Names say what to expect:
+#   green = promotion should succeed, red = promotion should be blocked.
+#
+# trivy-image (custom step)
+#   trivy-pass        alpine 3.24.2  -> no fixable CRITICAL vulnerabilities, passes
+#   trivy-blocked     nginx 1.20.0   -> CRITICAL vulnerabilities, blocked (they are listed in the output)
+# cosign-verify (custom step)
+#   cosign-verified   cosign v3.1.3 signed by the Sigstore project -> passes
+#   cosign-unsigned   guestbook 0.0.2, unsigned                    -> blocked
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: trivy-pass
+  namespace: custom-steps-supply-chain
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: green
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: images
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: trivy-image
+        vars:
+        - name: imageRepo
+          value: public.ecr.aws/docker/library/alpine
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: trivy-blocked
+  namespace: custom-steps-supply-chain
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: red
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: images
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: trivy-image
+        vars:
+        - name: imageRepo
+          value: public.ecr.aws/docker/library/nginx
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: cosign-verified
+  namespace: custom-steps-supply-chain
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: green
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: images
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: cosign-verify
+        vars:
+        - name: imageRepo
+          value: ghcr.io/sigstore/cosign/cosign
+        - name: identity
+          value: keyless@projectsigstore.iam.gserviceaccount.com
+        - name: issuer
+          value: https://accounts.google.com
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: cosign-unsigned
+  namespace: custom-steps-supply-chain
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: red
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: images
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: cosign-verify
+        vars:
+        - name: imageRepo
+          value: ghcr.io/akuity/guestbook
+        - name: identity
+          value: keyless@projectsigstore.iam.gserviceaccount.com
+        - name: issuer
+          value: https://accounts.google.com

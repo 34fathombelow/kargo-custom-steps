@@ -1,0 +1,15 @@
+description: an unhealthy application blocks the promotion; multi-source revisions are joined
+config:
+  app: custom-steps-staging
+files:
+  app.json: test/fixtures/argocd-drift-check/apps/degraded.json
+env:
+  DRIFT_CHECK_APP_FILE: /workdir/app.json
+expect:
+  status: Failed
+  output:
+    unhealthy: true
+    drifted: false
+    revision: 59d3b42,c0a3f0d
+  messageContains:
+  - "Application argocd/custom-steps-staging health is Degraded."

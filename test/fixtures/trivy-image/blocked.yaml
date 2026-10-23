@@ -1,0 +1,11 @@
+description: an old image with fixable CRITICAL vulnerabilities blocks the promotion and lists them
+config:
+  image: public.ecr.aws/docker/library/alpine:3.14.0
+expect:
+  status: Failed
+  output:
+    blocked: true
+  outputKeys: [vulnerabilities, counts, links]
+  messageContains:
+  - "Promotion blocked:"
+  - "CRITICAL vulnerabilities in public.ecr.aws/docker/library/alpine:3.14.0"

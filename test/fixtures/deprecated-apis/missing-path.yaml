@@ -1,0 +1,8 @@
+description: a path no earlier step wrote names the missing prerequisite
+config:
+  path: ./out
+  k8sVersion: "1.33"
+expect:
+  status: Failed
+  messageContains:
+  - "is not a directory in the workdir (did an earlier helm-template / kustomize-build / git-clone step write it?)"

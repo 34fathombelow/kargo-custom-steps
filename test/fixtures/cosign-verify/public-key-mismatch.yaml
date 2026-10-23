@@ -1,0 +1,14 @@
+description: with publicKey (a multi-line PEM), the key reaches cosign intact; a key that did not sign the image blocks the promotion
+config:
+  image: ghcr.io/sigstore/cosign/cosign@sha256:9e5c2f2edc34351160407ca3416c61855bdf9403c3c5936e0f0be7fc261611b8
+  publicKey: |
+    -----BEGIN PUBLIC KEY-----
+    MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE0Af1/gLoC6K1BpPS3J2HPz00jwS5
+    Qk8pZU0ZdvgqXALm1WdfiX73tl0lRmZQKS1Kn4WSlycXbmORs06szlO0Mg==
+    -----END PUBLIC KEY-----
+expect:
+  status: Failed
+  output:
+    verified: false
+  messageContains:
+  - "failed signature verification"

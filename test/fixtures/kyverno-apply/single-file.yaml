@@ -1,0 +1,12 @@
+description: path and policyPath may be single files
+config:
+  path: src/demo-fixtures/policy/compliant/deployment.yaml
+  policyPath: src/policy/kyverno/disallow-latest-tag.yaml
+files:
+  src/demo-fixtures/policy: demo-fixtures/policy
+  src/policy/kyverno: policy/kyverno
+expect:
+  status: Succeeded
+  output:
+    passed: true
+    summary: {pass: 2, fail: 0, warn: 0, error: 0, skip: 0}

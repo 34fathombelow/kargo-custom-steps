@@ -1,0 +1,19 @@
+# Verifies the signature of one image from the Freight with the cosign-verify
+# custom step, pinned by digest.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: PromotionTask
+metadata:
+  name: cosign-verify
+  namespace: custom-steps-supply-chain
+spec:
+  vars:
+  - name: imageRepo
+  - name: identity
+  - name: issuer
+  steps:
+  - uses: cosign-verify
+    as: verify
+    config:
+      image: ${{ imageFrom(vars.imageRepo).RepoURL + "@" + imageFrom(vars.imageRepo).Digest }}
+      certificateIdentity: ${{ vars.identity }}
+      certificateOidcIssuer: ${{ vars.issuer }}

@@ -1,0 +1,19 @@
+description: dryRun reports pending migrations without applying them
+config:
+  url: jdbc:postgresql://runstep-pg:5432/guestbook
+  username: guestbook
+  password: guestbook-demo
+  migrationsPath: ./migrations-next
+  dryRun: true
+files:
+  migrations-next: test/fixtures/flyway-migrate/migrations-next
+docker: ["--network", "runstep-pg"]
+expect:
+  status: Succeeded
+  output:
+    dryRun: true
+    migrationsApplied: 0
+    schemaVersion: "3"
+    pending:
+    - version: "4"
+      description: add email

@@ -1,0 +1,19 @@
+# Checks an Argo CD Application for drift before promoting. The two demo
+# Applications come from prereqs/argocd-drift-check/.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: PromotionTask
+metadata:
+  name: argocd-drift-check
+  namespace: custom-steps-release-insight
+spec:
+  vars:
+  - name: app
+    value: drift-demo-clean
+  - name: namespace
+    value: argocd
+  steps:
+  - uses: argocd-drift-check
+    as: drift
+    config:
+      app: ${{ vars.app }}
+      namespace: ${{ vars.namespace }}

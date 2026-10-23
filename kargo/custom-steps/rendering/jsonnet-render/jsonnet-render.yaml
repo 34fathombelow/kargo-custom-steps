@@ -1,0 +1,127 @@
+# CustomPromotionStep: jsonnet-render
+#
+# Renders Jsonnet into Kubernetes YAML in the promotion workdir, the way the
+# built-in helm-template and kustomize-build steps do for Helm and Kustomize.
+# Later steps (a policy gate, a diff, ...) use the rendered files.
+#
+# Config:
+#   path       - workdir-relative entry file (e.g. ./src/deploy/main.jsonnet)
+#   outPath    - where to write: a .yaml/.yml file (one multi-document file) or a
+#                directory (one <kind>-<name>.yaml per manifest). Replaced if it exists.
+#   extVars    - map of external string variables (std.extVar)
+#   tlaVars    - map of top-level string arguments (when the entry file is a function)
+#   jpath      - list of workdir-relative library directories (-J)
+#   jbInstall  - run `jb install` next to the entry file first (needs its
+#                jsonnetfile.json and egress to the dependency hosts); vendor/ is added to jpath
+#
+# Output (JSON): outPath, count, files[], resources[{kind, name, namespace}]
+apiVersion: ee.kargo.akuity.io/v1alpha1
+kind: CustomPromotionStep
+metadata:
+  name: jsonnet-render
+spec:
+  image: ghcr.io/34fathombelow/jsonnet:v0.22.0
+  defaultTimeout: 3m
+  defaultErrorThreshold: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  env:
+  - name: ENTRY
+    value: ${{ quote(config.path ?? "") }}
+  - name: OUT_PATH
+    value: ${{ quote(config.outPath ?? "") }}
+  - name: EXT_VARS
+    value: ${{ asJSON(config.extVars ?? {}) }}
+  - name: TLA_VARS
+    value: ${{ asJSON(config.tlaVars ?? {}) }}
+  - name: JPATH
+    value: ${{ asJSON(config.jpath ?? []) }}
+  - name: JB_INSTALL
+    value: ${{ quote(string(config.jbInstall ?? false)) }}
+  command:
+  - bash
+  - -c
+  - |
+    set -euo pipefail
+    out=/tmp/jsonnet-render.json
+    fail() { echo "jsonnet-render: $*" >&2; exit 1; }
+
+    [ -n "$ENTRY" ] || fail "config.path is required (the entry .jsonnet file)"
+    [ -f "$ENTRY" ] || fail "config.path $ENTRY not found in the workdir (did an earlier git-clone step check it out?)"
+    [ -n "$OUT_PATH" ] || fail "config.outPath is required (a .yaml file or a directory)"
+    # asJSON() output ends with a newline; normalize to compact JSON.
+    ext="$(jq -c 'if type == "object" then . else error end' <<<"$EXT_VARS" 2>/dev/null)" || fail "config.extVars must be a map"
+    tla="$(jq -c 'if type == "object" then . else error end' <<<"$TLA_VARS" 2>/dev/null)" || fail "config.tlaVars must be a map"
+    jpath="$(jq -c 'if type == "array" then . else error end' <<<"$JPATH" 2>/dev/null)" || fail "config.jpath must be a list"
+
+    args=()
+    while IFS= read -r -d '' dir; do
+      [ -d "$dir" ] || fail "jpath entry $dir is not a directory in the workdir"
+      args+=(-J "$dir")
+    done < <(jq -j '.[] | tostring, "\u0000"' <<<"$jpath")
+
+    if [ "$JB_INSTALL" = "true" ]; then
+      dir="$(dirname "$ENTRY")"
+      [ -f "$dir/jsonnetfile.json" ] || fail "jbInstall is set but $dir/jsonnetfile.json does not exist"
+      (cd "$dir" && jb install >&2) || fail "jb install failed in $dir (it needs egress to the dependency hosts, usually github.com)"
+      args+=(-J "$dir/vendor")
+    fi
+
+    # Values are passed as argv elements, never through a shell, so any
+    # characters are safe. NUL-separated so values may contain newlines.
+    while IFS= read -r -d '' k && IFS= read -r -d '' v; do
+      args+=(--ext-str "$k=$v")
+    done < <(jq -j 'to_entries[] | .key, "\u0000", (.value | tostring), "\u0000"' <<<"$ext")
+    while IFS= read -r -d '' k && IFS= read -r -d '' v; do
+      args+=(--tla-str "$k=$v")
+    done < <(jq -j 'to_entries[] | .key, "\u0000", (.value | tostring), "\u0000"' <<<"$tla")
+
+    jsonnet "${args[@]}" "$ENTRY" > /tmp/rendered.json || fail "jsonnet failed to evaluate $ENTRY (see the error above)"
+
+    # Flatten the result into a list of manifests: a manifest, a List, an array,
+    # or an object whose values are any of these (a common Jsonnet layout).
+    jq -c '
+      def docs:
+        if type == "array" then .[] | docs
+        elif type == "object" and has("apiVersion") and has("kind") then
+          (if .kind == "List" then .items[] | docs else . end)
+        elif type == "object" then .[] | docs
+        else error("unexpected \(type) in the rendered output; expected Kubernetes objects") end;
+      [docs]' /tmp/rendered.json > /tmp/manifests.json || fail "the output of $ENTRY is not a set of Kubernetes objects"
+    count="$(jq 'length' /tmp/manifests.json)"
+    [ "$count" -gt 0 ] || fail "$ENTRY rendered no Kubernetes objects"
+
+    files=()
+    case "$OUT_PATH" in
+      *.yaml|*.yml)
+        mkdir -p "$(dirname "$OUT_PATH")"
+        yq -P -p json -o yaml '.[] | split_doc' /tmp/manifests.json > "$OUT_PATH"
+        files+=("$OUT_PATH")
+        ;;
+      *)
+        rm -rf "$OUT_PATH" && mkdir -p "$OUT_PATH"
+        for i in $(seq 0 $((count - 1))); do
+          name="$(jq -r ".[$i] | \"\(.kind)-\(.metadata.name // \"unnamed\")\" | ascii_downcase | gsub(\"[^a-z0-9.-]\"; \"-\")" /tmp/manifests.json)"
+          f="$OUT_PATH/$name.yaml"
+          [ -e "$f" ] && f="$OUT_PATH/$name-$i.yaml"
+          jq ".[$i]" /tmp/manifests.json | yq -P -p json -o yaml > "$f"
+          files+=("$f")
+        done
+        ;;
+    esac
+
+    printf '%s\0' "${files[@]}" | jq -Rs --arg outPath "$OUT_PATH" --slurpfile m /tmp/manifests.json '
+      {outPath: $outPath,
+       count: ($m[0] | length),
+       files: (split("\u0000") | map(select(. != ""))),
+       resources: ($m[0] | map({kind, name: .metadata.name, namespace: (.metadata.namespace // "")}))}' > "$out"
+    echo "Rendered $count object(s) from $ENTRY into $OUT_PATH:"
+    jq -r '.resources[] | "  \(.kind)/\(.name)"' "$out"
+  output:
+    source:
+      type: File
+      path: /tmp/jsonnet-render.json

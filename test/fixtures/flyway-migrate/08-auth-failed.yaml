@@ -1,0 +1,13 @@
+description: a wrong password is reported as an authentication failure, not a stack trace
+config:
+  url: jdbc:postgresql://runstep-pg:5432/guestbook
+  username: guestbook
+  password: not-the-password
+  migrationsPath: ./src/demo-fixtures/flyway-migrate/migrations
+files:
+  src/demo-fixtures/flyway-migrate: demo-fixtures/flyway-migrate
+docker: ["--network", "runstep-pg"]
+expect:
+  status: Failed
+  messageContains:
+  - "authentication failed for user 'guestbook'"

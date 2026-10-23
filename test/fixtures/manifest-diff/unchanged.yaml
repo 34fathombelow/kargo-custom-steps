@@ -1,0 +1,13 @@
+description: identical renders report no change
+config:
+  from: before
+  to: same
+files:
+  before: demo-fixtures/manifest-diff/before
+  same: demo-fixtures/manifest-diff/before
+expect:
+  status: Succeeded
+  output:
+    changed: false
+    summary: {added: 0, removed: 0, modified: 0, unchanged: 3}
+    diff: ""

@@ -1,0 +1,7 @@
+description: to is required
+config:
+  repoURL: https://github.com/akuity/guestbook
+expect:
+  status: Failed
+  messageContains:
+  - "config.to is required"

@@ -1,0 +1,15 @@
+description: a Deployment with :latest and no limits is blocked, with each violation reported
+config:
+  path: src/demo-fixtures/policy/violating
+  policyPath: src/policy/kyverno
+files:
+  src/demo-fixtures/policy: demo-fixtures/policy
+  src/policy/kyverno: policy/kyverno
+expect:
+  status: Failed
+  output:
+    passed: false
+    summary: {pass: 1, fail: 2, warn: 0, error: 0, skip: 0}
+  messageContains:
+  - "Promotion blocked by Kyverno policy violations"
+  - "disallow-latest-tag/disallow-latest Deployment/default/guestbook"

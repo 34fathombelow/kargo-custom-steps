@@ -1,0 +1,17 @@
+description: commits between the deployed and the promoted revision, newest first, with a GitHub compare link
+config:
+  repoURL: https://github.com/akuity/guestbook
+  from: c0a3f0dda1245536af7ecaf5f3f742d38a9d9075
+  to: 59d3b42c8919c74d9619116c9440c96c54ea32de
+expect:
+  status: Succeeded
+  output:
+    commits: 4
+    rollback: false
+    firstRelease: false
+    summary: 4 commit(s) in the repository
+    links:
+    - url: https://github.com/akuity/guestbook/compare/c0a3f0dda1245536af7ecaf5f3f742d38a9d9075...59d3b42c8919c74d9619116c9440c96c54ea32de
+      label: Compare on GitHub
+  messageContains:
+  - "59d3b42 feat: switch to Cobra CLI for flag handling (#2)"

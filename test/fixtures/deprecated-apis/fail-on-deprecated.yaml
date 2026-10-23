@@ -1,0 +1,12 @@
+description: with failOn=deprecated, a merely deprecated API also blocks
+config:
+  path: ./out
+  k8sVersion: v1.25
+  failOn: deprecated
+files:
+  out: demo-fixtures/deprecated-apis/manifests
+expect:
+  status: Failed
+  output:
+    passed: false
+    failOn: deprecated

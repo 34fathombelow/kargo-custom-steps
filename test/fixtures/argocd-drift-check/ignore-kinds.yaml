@@ -1,0 +1,13 @@
+description: ignoreKinds removes noisy kinds from the drift report, but an OutOfSync app still blocks with requireSynced
+config:
+  app: guestbook-prod
+  ignoreKinds: [Job]
+files:
+  app.json: test/fixtures/argocd-drift-check/apps/drifted.json
+env:
+  DRIFT_CHECK_APP_FILE: /workdir/app.json
+expect:
+  status: Failed
+  output:
+    outOfSync:
+    - {group: apps, kind: Deployment, namespace: prod, name: guestbook, status: OutOfSync, health: Healthy}

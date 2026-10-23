@@ -1,0 +1,27 @@
+# Checks the manifests about to be deployed against the target cluster's
+# Kubernetes version. In real use the manifests come from helm-template or
+# kustomize-build; the demo uses static manifests from demo-fixtures/ that
+# include an autoscaling/v2beta2 HorizontalPodAutoscaler (removed in 1.26).
+apiVersion: kargo.akuity.io/v1alpha1
+kind: PromotionTask
+metadata:
+  name: deprecated-apis
+  namespace: custom-steps-manifest-quality
+spec:
+  vars:
+  - name: repoURL
+    value: https://github.com/34fathombelow/kargo-custom-steps.git
+  - name: k8sVersion
+    value: "1.33"
+  steps:
+  - uses: git-clone
+    config:
+      repoURL: ${{ vars.repoURL }}
+      checkout:
+      - branch: main
+        path: ./src
+  - uses: deprecated-apis
+    as: apis
+    config:
+      path: ./src/demo-fixtures/deprecated-apis/manifests
+      k8sVersion: ${{ quote(vars.k8sVersion) }}

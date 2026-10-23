@@ -1,0 +1,18 @@
+# Demo project for the "supply-chain" group: is this image safe and trusted?
+# The Namespace is created first and adopted by the Project (it carries the
+# kargo.akuity.io/project label), so everything applies in one go.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: custom-steps-supply-chain
+  labels:
+    kargo.akuity.io/project: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Project
+metadata:
+  name: custom-steps-supply-chain
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"

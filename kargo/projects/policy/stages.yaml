@@ -1,0 +1,163 @@
+# Stages for the policy demo. Names say what to expect:
+#   green = promotion should succeed, red = promotion should be blocked.
+#
+# kyverno-apply (custom step)       kyverno-pass / kyverno-blocked
+# opa-conftest (custom step)        conftest-pass / conftest-blocked
+# opa-promotion-gate (custom step)  promotion-allowed (environment dev)
+#                                   promotion-denied (environment prod, no change
+#                                   ticket, actor not a release manager)
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: kyverno-pass
+  namespace: custom-steps-policy
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: green
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: guestbook
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: kyverno-apply
+        vars:
+        - name: manifests
+          value: compliant
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: kyverno-blocked
+  namespace: custom-steps-policy
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: red
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: guestbook
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: kyverno-apply
+        vars:
+        - name: manifests
+          value: violating
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: conftest-pass
+  namespace: custom-steps-policy
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: green
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: guestbook
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: opa-conftest
+        vars:
+        - name: manifests
+          value: compliant
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: conftest-blocked
+  namespace: custom-steps-policy
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: red
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: guestbook
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: opa-conftest
+        vars:
+        - name: manifests
+          value: violating
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: promotion-allowed
+  namespace: custom-steps-policy
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: green
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: guestbook
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: opa-promotion-gate
+        vars:
+        - name: environment
+          value: dev
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: promotion-denied
+  namespace: custom-steps-policy
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: red
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: guestbook
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: opa-promotion-gate
+        vars:
+        - name: environment
+          value: prod

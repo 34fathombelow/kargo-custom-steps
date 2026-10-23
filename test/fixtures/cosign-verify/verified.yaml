@@ -1,0 +1,14 @@
+description: a keyless-signed image (cosign's own release image) verifies against its expected signer
+config:
+  image: ghcr.io/sigstore/cosign/cosign@sha256:9e5c2f2edc34351160407ca3416c61855bdf9403c3c5936e0f0be7fc261611b8
+  certificateIdentity: keyless@projectsigstore.iam.gserviceaccount.com
+  certificateOidcIssuer: https://accounts.google.com
+expect:
+  status: Succeeded
+  output:
+    verified: true
+    digest: sha256:9e5c2f2edc34351160407ca3416c61855bdf9403c3c5936e0f0be7fc261611b8
+    identities:
+    - subject: keyless@projectsigstore.iam.gserviceaccount.com
+      issuer: https://accounts.google.com
+  outputKeys: [logIndexes, links]

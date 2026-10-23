@@ -1,0 +1,18 @@
+# The manifests come from this repo (git-clone in the PromotionTask); the image
+# subscription only gives the demo some Freight to promote.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Warehouse
+metadata:
+  name: guestbook
+  namespace: custom-steps-manifest-quality
+  labels:
+    kargo.akuity.io/shard: custom-steps
+spec:
+  shard: custom-steps
+  interval: 5m0s
+  subscriptions:
+  - image:
+      repoURL: ghcr.io/akuity/guestbook
+      imageSelectionStrategy: SemVer
+      constraint: ">=0.0.1"
+      discoveryLimit: 5

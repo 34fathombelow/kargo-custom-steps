@@ -1,0 +1,12 @@
+description: jbInstall without a jsonnetfile.json fails before trying the network
+config:
+  path: ./src/main.jsonnet
+  outPath: ./out
+  jbInstall: true
+  extVars: {image: x}
+files:
+  src: demo-fixtures/jsonnet-render
+expect:
+  status: Failed
+  messageContains:
+  - "jbInstall is set but ./src/jsonnetfile.json does not exist"

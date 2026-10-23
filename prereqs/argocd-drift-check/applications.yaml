@@ -1,0 +1,47 @@
+# Two Argo CD Applications for the argocd-drift-check demo, synced into Argo CD
+# by argocd/apps/prereqs-argocd-drift-check.yaml. They deploy to the agent
+# cluster ("custom-steps-agent" in Argo CD).
+#
+#   drift-demo-clean     automated sync + self-heal: stays Synced/Healthy -> the Stage passes
+#   drift-demo-unsynced  no automated sync, never synced: OutOfSync       -> the Stage is blocked
+#
+# Both deploy the public argocd-example-apps guestbook, so no repo credentials are needed.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: drift-demo-clean
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/argoproj/argocd-example-apps.git
+    targetRevision: HEAD
+    path: guestbook
+  destination:
+    name: custom-steps-agent
+    namespace: drift-demo-clean
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: drift-demo-unsynced
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/argoproj/argocd-example-apps.git
+    targetRevision: HEAD
+    path: guestbook
+  destination:
+    name: custom-steps-agent
+    namespace: drift-demo-unsynced
+  # Deliberately no automated sync: the app stays OutOfSync until someone syncs it.
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=true

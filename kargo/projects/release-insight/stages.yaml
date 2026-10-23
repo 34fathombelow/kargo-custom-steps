@@ -1,0 +1,129 @@
+# Stages for the release-insight demo. green = should succeed, red = should be blocked.
+#
+# manifest-diff        renders the chart for the current and the new image tag and shows the diff
+# release-dev          git log between the commit dev last ran and the promoted commit
+#   -> release-staging the same for staging, fed from release-dev (Freight carries over)
+# drift-clean          Argo CD app that is Synced + Healthy          -> passes
+# drift-detected       Argo CD app that was never synced (OutOfSync) -> blocked
+#                      (both need prereqs/argocd-drift-check)
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: manifest-diff
+  namespace: custom-steps-release-insight
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: green
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: guestbook
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: manifest-diff
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: release-dev
+  namespace: custom-steps-release-insight
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: green
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: guestbook-source
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: release-diff
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: release-staging
+  namespace: custom-steps-release-insight
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: green
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: guestbook-source
+    sources:
+      stages:
+      - release-dev
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: release-diff
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: drift-clean
+  namespace: custom-steps-release-insight
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: green
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: guestbook
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: argocd-drift-check
+        vars:
+        - name: app
+          value: drift-demo-clean
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: drift-detected
+  namespace: custom-steps-release-insight
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: red
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: guestbook
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: argocd-drift-check
+        vars:
+        - name: app
+          value: drift-demo-unsynced

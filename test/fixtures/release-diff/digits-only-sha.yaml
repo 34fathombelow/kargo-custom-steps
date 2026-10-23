@@ -1,0 +1,13 @@
+description: >-
+  a short SHA made only of digits (4067264) still resolves: without quote() Kargo's
+  template engine would turn it into 1.234567e+06-style notation (4.067264e+06)
+config:
+  repoURL: https://github.com/akuity/guestbook
+  from: "4067264"
+  to: 59d3b42
+expect:
+  status: Succeeded
+  output:
+    commits: 9
+    from: "4067264"
+    rollback: false

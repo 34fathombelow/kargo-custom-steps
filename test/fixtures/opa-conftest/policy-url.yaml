@@ -1,0 +1,10 @@
+description: policies can be pulled from a remote git URL (conftest's own Kubernetes examples) instead of the workdir (needs network)
+config:
+  path: src/demo-fixtures/policy/violating
+  policyURL: git::https://github.com/open-policy-agent/conftest.git//examples/kubernetes/policy
+files:
+  src/demo-fixtures/policy: demo-fixtures/policy
+expect:
+  status: Failed
+  output:
+    passed: false

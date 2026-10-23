@@ -1,0 +1,6 @@
+description: app is required
+config: {}
+expect:
+  status: Failed
+  messageContains:
+  - "config.app is required"

@@ -1,0 +1,8 @@
+description: an invalid severity is rejected instead of silently scanning for nothing
+config:
+  image: public.ecr.aws/docker/library/alpine:3.24.2
+  severity: CRITICAL,SEVERE
+expect:
+  status: Failed
+  messageContains:
+  - "invalid severity 'SEVERE'"

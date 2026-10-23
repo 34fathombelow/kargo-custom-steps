@@ -1,0 +1,10 @@
+description: a query that matches no package fails with a hint instead of silently allowing
+config:
+  policyPath: src/policy/opa/promotion
+  query: data.kargo.nope
+files:
+  src/policy/opa/promotion: policy/opa/promotion
+expect:
+  status: Failed
+  messageContains:
+  - "query data.kargo.nope is undefined"

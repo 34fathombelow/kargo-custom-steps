@@ -1,0 +1,44 @@
+# Images must be pinned: no ":latest" and no missing tag.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-latest-tag
+  annotations:
+    policies.kyverno.io/title: Disallow latest tag
+    policies.kyverno.io/severity: medium
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+  - name: require-image-tag
+    match:
+      any:
+      - resources:
+          kinds:
+          - Deployment
+          - StatefulSet
+          - DaemonSet
+    validate:
+      message: "An image tag is required (image: name:tag)."
+      pattern:
+        spec:
+          template:
+            spec:
+              containers:
+              - image: "*:*"
+  - name: disallow-latest
+    match:
+      any:
+      - resources:
+          kinds:
+          - Deployment
+          - StatefulSet
+          - DaemonSet
+    validate:
+      message: "The ':latest' tag is not allowed; pin a version."
+      pattern:
+        spec:
+          template:
+            spec:
+              containers:
+              - image: "!*:latest"

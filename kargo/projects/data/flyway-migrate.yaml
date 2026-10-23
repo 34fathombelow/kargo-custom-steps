@@ -1,0 +1,34 @@
+# Checks out the migrations at the Freight's commit and applies them with the
+# flyway-migrate custom step. Database URL and credentials come from the
+# `flyway-db` Secret (create it in the Kargo UI: secrets/README.md) through secret().
+apiVersion: kargo.akuity.io/v1alpha1
+kind: PromotionTask
+metadata:
+  name: flyway-migrate
+  namespace: custom-steps-data
+spec:
+  vars:
+  - name: repoURL
+    value: https://github.com/34fathombelow/kargo-custom-steps.git
+  - name: dbSecret
+    value: flyway-db
+  # Which migration set to apply: `migrations` (V1-V3), or `migrations-v1`
+  # (V1 only), which stands in for an older release in the rollback Stage.
+  - name: migrations
+    value: migrations
+  steps:
+  - uses: git-clone
+    config:
+      repoURL: ${{ vars.repoURL }}
+      checkout:
+      - commit: ${{ commitFrom(vars.repoURL).ID }}
+        path: ./src
+        sparse:
+        - demo-fixtures/flyway-migrate
+  - uses: flyway-migrate
+    as: migrate
+    config:
+      url: ${{ secret(vars.dbSecret).url }}
+      username: ${{ secret(vars.dbSecret).username }}
+      password: ${{ secret(vars.dbSecret).password }}
+      migrationsPath: ./src/demo-fixtures/flyway-migrate/${{ vars.migrations }}

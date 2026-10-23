@@ -1,0 +1,28 @@
+# The only thing you create by hand: one Argo CD Application (app-of-apps) that
+# syncs every Application in argocd/apps/. Everything else, including the
+# custom steps, the demo projects and the demo prerequisites, then arrives
+# through GitOps.
+#
+# Create it in the Argo CD UI: + New App -> Edit as YAML -> paste this file -> Create.
+#
+# It creates Application resources in Argo CD itself (destination in-cluster,
+# namespace argocd). On the Akuity Platform, enable Declarative Management on the
+# Argo CD instance so the in-cluster destination is available.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kargo-custom-steps-root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/34fathombelow/kargo-custom-steps.git
+    targetRevision: HEAD
+    path: argocd/apps
+  destination:
+    name: in-cluster
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

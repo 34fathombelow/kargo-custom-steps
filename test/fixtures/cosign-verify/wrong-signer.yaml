@@ -1,0 +1,12 @@
+description: a signature from a different signer than expected blocks the promotion and names the actual signer
+config:
+  image: ghcr.io/sigstore/cosign/cosign:v3.1.3
+  certificateIdentityRegexp: ^https://github\.com/example/
+  certificateOidcIssuer: https://token.actions.githubusercontent.com
+expect:
+  status: Failed
+  output:
+    verified: false
+  messageContains:
+  - "failed signature verification"
+  - "keyless@projectsigstore.iam.gserviceaccount.com"

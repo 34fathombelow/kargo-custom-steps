@@ -1,0 +1,20 @@
+# Every commit that changes the demo migrations becomes new Freight, so the
+# schema version travels with the Freight. Promoting an older Freight is a
+# rollback (see the `rollback` Stage).
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Warehouse
+metadata:
+  name: migrations
+  namespace: custom-steps-data
+  labels:
+    kargo.akuity.io/shard: custom-steps
+spec:
+  shard: custom-steps
+  interval: 5m0s
+  subscriptions:
+  - git:
+      repoURL: https://github.com/34fathombelow/kargo-custom-steps.git
+      branch: main
+      includePaths:
+      - demo-fixtures/flyway-migrate
+      discoveryLimit: 10

@@ -1,0 +1,12 @@
+description: a library directory that does not exist is reported, not left to an import error
+config:
+  path: ./src/main.jsonnet
+  outPath: ./out
+  jpath: [./vendor]
+  extVars: {image: x}
+files:
+  src: demo-fixtures/jsonnet-render
+expect:
+  status: Failed
+  messageContains:
+  - "jpath entry ./vendor is not a directory in the workdir"

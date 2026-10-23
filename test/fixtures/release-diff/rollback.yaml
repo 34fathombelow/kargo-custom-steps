@@ -1,0 +1,13 @@
+description: promoting an older revision is reported as a rollback listing the commits being reverted
+config:
+  repoURL: https://github.com/akuity/guestbook
+  from: 59d3b42c8919c74d9619116c9440c96c54ea32de
+  to: c0a3f0dda1245536af7ecaf5f3f742d38a9d9075
+expect:
+  status: Succeeded
+  output:
+    commits: 4
+    rollback: true
+    summary: "rollback: reverting 4 commit(s) in the repository"
+  messageContains:
+  - "59d3b42 feat: switch to Cobra CLI for flag handling (#2)"

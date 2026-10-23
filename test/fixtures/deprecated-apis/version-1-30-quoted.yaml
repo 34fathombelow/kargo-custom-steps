@@ -1,0 +1,10 @@
+description: '"1.30" must reach the step as 1.30 (quote()), not 1.3, so the target is v1.30.0'
+config:
+  path: ./out
+  k8sVersion: "1.30"
+files:
+  out: demo-fixtures/deprecated-apis/clean
+expect:
+  status: Succeeded
+  output:
+    targetVersion: v1.30.0

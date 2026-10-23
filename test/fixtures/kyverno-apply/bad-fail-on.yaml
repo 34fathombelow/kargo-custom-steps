@@ -1,0 +1,12 @@
+description: an invalid failOn value is rejected instead of being ignored
+config:
+  path: src/demo-fixtures/policy/compliant
+  policyPath: src/policy/kyverno
+  failOn: never
+files:
+  src/demo-fixtures/policy: demo-fixtures/policy
+  src/policy/kyverno: policy/kyverno
+expect:
+  status: Failed
+  messageContains:
+  - 'failOn must be "fail" or "warn"'

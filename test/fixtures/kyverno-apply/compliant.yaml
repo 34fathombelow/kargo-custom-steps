@@ -1,0 +1,13 @@
+description: compliant manifests pass every policy
+config:
+  path: src/demo-fixtures/policy/compliant
+  policyPath: src/policy/kyverno
+files:
+  src/demo-fixtures/policy: demo-fixtures/policy
+  src/policy/kyverno: policy/kyverno
+expect:
+  status: Succeeded
+  output:
+    passed: true
+    summary: {pass: 3, fail: 0, warn: 0, error: 0, skip: 0}
+    violations: []

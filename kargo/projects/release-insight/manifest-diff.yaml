@@ -1,0 +1,43 @@
+# Renders demo-fixtures/manifest-diff/chart twice (with its default image tag,
+# standing in for what the Stage runs now, and with the new Freight's tag) and
+# diffs the two renders with the manifest-diff step.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: PromotionTask
+metadata:
+  name: manifest-diff
+  namespace: custom-steps-release-insight
+spec:
+  vars:
+  - name: repoURL
+    value: https://github.com/34fathombelow/kargo-custom-steps.git
+  - name: image
+    value: ghcr.io/akuity/guestbook
+  steps:
+  - uses: git-clone
+    config:
+      repoURL: ${{ vars.repoURL }}
+      checkout:
+      - branch: main
+        path: ./src
+  - uses: helm-template
+    as: render-current
+    config:
+      path: ./src/demo-fixtures/manifest-diff/chart
+      releaseName: guestbook
+      namespace: guestbook
+      outPath: ./out/current.yaml
+  - uses: helm-template
+    as: render-new
+    config:
+      path: ./src/demo-fixtures/manifest-diff/chart
+      releaseName: guestbook
+      namespace: guestbook
+      setValues:
+      - key: image.tag
+        value: ${{ imageFrom(vars.image).Tag }}
+      outPath: ./out/new.yaml
+  - uses: manifest-diff
+    as: diff
+    config:
+      from: ./out/current.yaml
+      to: ./out/new.yaml

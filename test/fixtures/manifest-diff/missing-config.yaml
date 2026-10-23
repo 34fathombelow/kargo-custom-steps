@@ -1,0 +1,6 @@
+description: from and to are required
+config: {}
+expect:
+  status: Failed
+  messageContains:
+  - "config.from is required"

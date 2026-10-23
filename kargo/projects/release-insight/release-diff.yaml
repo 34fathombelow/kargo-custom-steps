@@ -1,0 +1,29 @@
+# What changed in the guestbook source since the commit this Stage last ran.
+# The previous commit is stored on the Stage with set-metadata and read back
+# with stageMetadata().
+apiVersion: kargo.akuity.io/v1alpha1
+kind: PromotionTask
+metadata:
+  name: release-diff
+  namespace: custom-steps-release-insight
+spec:
+  vars:
+  - name: repoURL
+    value: https://github.com/akuity/guestbook
+  steps:
+  - uses: release-diff
+    as: release
+    config:
+      repoURL: ${{ vars.repoURL }}
+      # quote(): a short SHA made only of digits would otherwise become a number.
+      from: ${{ quote(stageMetadata(ctx.stage)?.lastCommit ?? "") }}
+      to: ${{ quote(commitFrom(vars.repoURL).ID) }}
+  # Remember what this Stage now runs, for the next promotion's diff.
+  - uses: set-metadata
+    config:
+      updates:
+      - kind: Stage
+        name: ${{ ctx.stage }}
+        values:
+          lastCommit: ${{ quote(commitFrom(vars.repoURL).ID) }}
+          lastReleaseSummary: ${{ task.outputs['release'].summary }}

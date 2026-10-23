@@ -1,0 +1,146 @@
+# CustomPromotionStep: flyway-migrate
+#
+# Applies Flyway SQL migrations to a Stage's database during promotion, so the
+# schema travels with the Freight instead of drifting on its own schedule.
+# Design notes:
+#   - `flyway repair` runs first. A failed non-transactional migration leaves a
+#     failed row in flyway_schema_history that blocks every later run; repair
+#     clears it and is a no-op on a healthy history.
+#   - Missing and future migrations are ignored, so promoting OLDER Freight
+#     (a rollback) is a clean no-op instead of a validation failure. Flyway has
+#     no automatic down-migrations; the step reports `rollback: true` so you can see it.
+#   - Re-runs are idempotent (applied versions are skipped), and Flyway takes a
+#     Postgres advisory lock, so concurrent promotions against one database serialize.
+#
+# Config:
+#   url               - JDBC URL, e.g. jdbc:postgresql://host:5432/db (required)
+#   username          - database user (required)
+#   password          - database password, pass it with secret() (required)
+#   migrationsPath    - workdir-relative dir with V*.sql files (required)
+#   target            - migrate up to this version (optional)
+#   dryRun            - validate and report pending migrations without changing anything (default false)
+#   baselineOnMigrate - baseline a non-empty schema that has no history table (default false)
+#   connectRetries    - connection retries, ~1s apart and backing off (default 3)
+#
+# Output (JSON): schemaVersion, initialSchemaVersion, migrationsApplied,
+#   applied[], pending[], rollback, futureVersions[], dryRun
+apiVersion: ee.kargo.akuity.io/v1alpha1
+kind: CustomPromotionStep
+metadata:
+  name: flyway-migrate
+spec:
+  image: ghcr.io/34fathombelow/flyway:13.10.3
+  defaultTimeout: 10m
+  defaultErrorThreshold: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  # Every value is passed as JSON (asJSON) and decoded with jq in the script:
+  # the only form that keeps arbitrary strings (passwords with quotes,
+  # backslashes, all-digit values) byte-for-byte intact.
+  env:
+  - name: CFG_URL
+    value: ${{ asJSON(config.url ?? "") }}
+  - name: CFG_USERNAME
+    value: ${{ asJSON(config.username ?? "") }}
+  - name: CFG_PASSWORD
+    value: ${{ asJSON(config.password ?? "") }}
+  - name: CFG_MIGRATIONS_PATH
+    value: ${{ asJSON(config.migrationsPath ?? "") }}
+  - name: CFG_TARGET
+    value: ${{ asJSON(string(config.target ?? "")) }}
+  - name: CFG_DRY_RUN
+    value: ${{ asJSON(config.dryRun ?? false) }}
+  - name: CFG_BASELINE_ON_MIGRATE
+    value: ${{ asJSON(config.baselineOnMigrate ?? false) }}
+  - name: CFG_CONNECT_RETRIES
+    value: ${{ asJSON(config.connectRetries ?? 3) }}
+  command:
+  - bash
+  - -c
+  - |
+    set -euo pipefail
+    out=/tmp/flyway-migrate.json
+    fail() { echo "flyway-migrate: $*" >&2; exit 1; }
+    cfg() { jq -j . <<<"$1"; }
+
+    url="$(cfg "$CFG_URL")"; user="$(cfg "$CFG_USERNAME")"; password="$(cfg "$CFG_PASSWORD")"
+    migrations="$(cfg "$CFG_MIGRATIONS_PATH")"; target="$(cfg "$CFG_TARGET")"
+    dry_run="$(cfg "$CFG_DRY_RUN")"; baseline="$(cfg "$CFG_BASELINE_ON_MIGRATE")"; retries="$(cfg "$CFG_CONNECT_RETRIES")"
+
+    [ -n "$url" ] || fail "config.url is empty (did you create the flyway-db secret? see secrets/README.md)"
+    [ -n "$user" ] || fail "config.username is empty (did you create the flyway-db secret? see secrets/README.md)"
+    [ -n "$password" ] || fail "config.password is empty (did you create the flyway-db secret? see secrets/README.md)"
+    [ -n "$migrations" ] || fail "config.migrationsPath is required"
+    [ -d "$migrations" ] || fail "migrationsPath $migrations not found in the workdir (did an earlier git-clone step check it out?)"
+    host="$(sed -E 's#^jdbc:[a-z0-9]+://([^/:?]+).*#\1#' <<<"$url")"
+
+    # Flyway reads its configuration from FLYWAY_* environment variables.
+    export FLYWAY_URL="$url" FLYWAY_USER="$user" FLYWAY_PASSWORD="$password"
+    export FLYWAY_LOCATIONS="filesystem:$(cd "$migrations" && pwd)"
+    export FLYWAY_IGNORE_MIGRATION_PATTERNS='*:missing,*:future'
+    export FLYWAY_CONNECT_RETRIES="$retries"
+    export FLYWAY_BASELINE_ON_MIGRATE="$baseline"
+    [ -z "$target" ] || export FLYWAY_TARGET="$target"
+
+    # flyway <operation>: JSON result in /tmp/<operation>.json. On failure,
+    # turn Flyway's JSON error (which includes a Java stack trace) into one line.
+    flyway_json() {
+      local op="$1"
+      if flyway -outputType=json "$op" >"/tmp/$op.json" 2>"/tmp/$op.err"; then return 0; fi
+      local state code msg
+      state="$(jq -r '.error.sqlState // ""' "/tmp/$op.json" 2>/dev/null || true)"
+      code="$(jq -r '.error.errorCode // ""' "/tmp/$op.json" 2>/dev/null || true)"
+      msg="$(jq -r '.error.message // empty' "/tmp/$op.json" 2>/dev/null | head -1 || true)"
+      case "$state" in
+        28P01|28000) fail "authentication failed for user '$user' (check the flyway-db Secret)" ;;
+        08*) fail "cannot reach $host: is prereqs/flyway-migrate deployed and reachable from the custom-steps agent cluster?" ;;
+      esac
+      [ -n "$msg" ] || msg="$(tail -5 "/tmp/$op.err")"
+      fail "flyway $op failed${code:+ ($code)}: $msg"
+    }
+
+    if [ "$dry_run" = "true" ]; then
+      # Read-only: no repair, no migrate. `info` lists pending migrations.
+      flyway_json info
+      jq '{
+        dryRun: true,
+        schemaVersion: (.schemaVersion // ""),
+        initialSchemaVersion: (.schemaVersion // ""),
+        migrationsApplied: 0,
+        applied: [],
+        pending: [.migrations[] | select(.state == "Pending") | {version, description}],
+        futureVersions: [.migrations[] | select(.state == "Future") | .version],
+        rollback: ([.migrations[] | select(.state == "Future")] | length > 0)
+      }' /tmp/info.json > "$out"
+      echo "Dry run: $(jq '.pending | length' "$out") pending migration(s); schema at version $(jq -r '.schemaVersion' "$out")."
+      exit 0
+    fi
+
+    flyway_json repair
+    flyway_json migrate
+    flyway_json info
+    jq -s '.[0] as $m | .[1] as $i | {
+      dryRun: false,
+      schemaVersion: ($i.schemaVersion // ""),
+      initialSchemaVersion: ($m.initialSchemaVersion // ""),
+      migrationsApplied: $m.migrationsExecuted,
+      applied: [$m.migrations[] | {version, description}],
+      pending: [],
+      futureVersions: [$i.migrations[] | select(.state == "Future") | .version],
+      rollback: ([$i.migrations[] | select(.state == "Future")] | length > 0)
+    }' /tmp/migrate.json /tmp/info.json > "$out"
+
+    applied="$(jq '.migrationsApplied' "$out")"; version="$(jq -r '.schemaVersion' "$out")"
+    if [ "$(jq '.rollback' "$out")" = "true" ]; then
+      echo "Rollback: the database is at version $version, ahead of these migrations ($(jq -c '.futureVersions' "$out") not in this Freight). Nothing applied; Flyway does not migrate down."
+    else
+      echo "Applied $applied migration(s); schema at version $version."
+    fi
+  output:
+    source:
+      type: File
+      path: /tmp/flyway-migrate.json

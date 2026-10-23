@@ -1,0 +1,14 @@
+description: an outPath ending in .yaml gets a single multi-document file
+config:
+  path: ./src/main.jsonnet
+  outPath: ./out/manifests.yaml
+  jpath: [./src/lib]
+  extVars:
+    image: "ghcr.io/akuity/guestbook:v0.0.2"
+files:
+  src: demo-fixtures/jsonnet-render
+expect:
+  status: Succeeded
+  output:
+    count: 2
+    files: [./out/manifests.yaml]

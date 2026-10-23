@@ -1,0 +1,18 @@
+description: promoting older Freight (fewer migrations) succeeds as a no-op and reports the rollback
+config:
+  url: jdbc:postgresql://runstep-pg:5432/guestbook
+  username: guestbook
+  password: guestbook-demo
+  migrationsPath: ./src/demo-fixtures/flyway-migrate/migrations-v1
+files:
+  src/demo-fixtures/flyway-migrate: demo-fixtures/flyway-migrate
+docker: ["--network", "runstep-pg"]
+expect:
+  status: Succeeded
+  output:
+    migrationsApplied: 0
+    schemaVersion: "3"
+    rollback: true
+    futureVersions: ["2", "3"]
+  messageContains:
+  - "Rollback: the database is at version 3"
