@@ -4,8 +4,17 @@ Looks up the Kubernetes version a cluster actually runs, from its API server's `
 target it instead of a version number someone has to keep updating in every Stage. Feed its `version` output to
 [`deprecated-apis`](../deprecated-apis) (`k8sVersion`), or to `helm-template` (`kubeVersion`).
 
-`/version` is readable without credentials on a default Kubernetes cluster (the built-in `system:public-info-viewer`
-role), so usually all the step needs is network access to the API server.
+How it authenticates, for the default (the cluster the promotion runs on):
+
+1. **The `access-argocd` capability's in-cluster credentials.** When Argo CD runs in the same cluster as the promotion
+   pods, Kargo gives the step a token and the cluster CA for *this* cluster. Any authenticated identity may read
+   `/version`, so that is all it needs, and TLS is verified with the real CA.
+2. **Anonymous.** Most clusters (EKS, GKE, AKS) allow anonymous `/version` (the built-in `system:public-info-viewer`
+   role). k3s does not.
+
+Custom step containers never get the promotion pod's own service account token (Kargo mounts it only into its
+orchestrator), so declaring a capability is the only way a step can authenticate to its local cluster. For another
+cluster, set `apiServer`, plus `token` if that cluster refuses anonymous `/version`.
 
 ## Prerequisites
 
@@ -15,8 +24,8 @@ Beyond the [common prerequisites](../../../../README.md#prerequisites):
 |---|---|
 | Cluster add-ons | None |
 | Reachable services | **The target cluster's API server, reachable from the `custom-steps` agent cluster** where promotion pods run. The default (no `apiServer`) is the agent cluster itself, which is always reachable. A remote cluster with a private API endpoint is not |
-| Accounts / credentials | None by default. A token only for clusters that disable anonymous `/version` |
-| Kargo capabilities | None |
+| Accounts / credentials | None for the local cluster when Argo CD runs in it (see capabilities) or allows anonymous `/version`. Otherwise a token |
+| Kargo capabilities | `access-argocd` (declared by the step). Kargo only provides credentials it can use, a token and CA for the local cluster, when Argo CD runs in the same cluster as the promotion pods; with a remote Argo CD the step ignores them and falls back to anonymous |
 | Network egress | The target API server |
 | Inputs | None |
 
@@ -25,9 +34,9 @@ Beyond the [common prerequisites](../../../../README.md#prerequisites):
 | Key | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `apiServer` | string | no | the cluster the promotion runs on (`https://kubernetes.default.svc`) | API server URL of the cluster to ask |
-| `caCert` | string | no | the service account CA, when mounted | PEM CA bundle to verify `apiServer`'s certificate |
-| `insecureSkipTLSVerify` | bool | no | `false` | Skip certificate verification. `/version` is public, but a spoofed answer would mislead later gates, so prefer `caCert` |
-| `token` | string | no | — | Bearer token, only for clusters that disable anonymous `/version`. Pass it from a secret: `${{ secret('cluster').token }}` |
+| `caCert` | string | no | the capability's cluster CA, for the local cluster | PEM CA bundle to verify the API server's certificate |
+| `insecureSkipTLSVerify` | bool | no | `false` | Skip certificate verification, **only when no CA is available**. `/version` is public, but a spoofed answer would mislead later gates, so prefer `caCert` |
+| `token` | string | no | the capability's token, for the local cluster | Bearer token for clusters that refuse anonymous `/version`. Any token works (no permissions are needed); pass it from a secret: `${{ secret('cluster').token }}` |
 
 ## Outputs
 
@@ -39,6 +48,7 @@ Beyond the [common prerequisites](../../../../README.md#prerequisites):
 | `minor` | string | `"X.Y"`, e.g. `"1.30"`. Don't pass it through `${{ }}` on its own: the template engine re-parses `1.30` as the number `1.3` |
 | `platform` | string | e.g. `linux/amd64` |
 | `source` | string | The API server that answered |
+| `auth` | string | How the step authenticated: `argocd-capability`, `token` or `anonymous` |
 | `error` | string | Only when the step fails: why |
 
 ## Example
@@ -66,6 +76,7 @@ the same output in the Kargo UI. Long lists and strings are trimmed here.
 
 ```json
 {
+  "auth": "anonymous",
   "gitVersion": "v1.30.4-eks-a737599",
   "major": "1",
   "minor": "1.30",
@@ -79,7 +90,7 @@ the same output in the Kargo UI. Long lists and strings are trimmed here.
 
 ```json
 {
-  "error": "http://fake-k8s-api:8080/locked does not allow anonymous access to /version (HTTP 401): set config.token",
+  "error": "http://fake-k8s-api:8080/locked does not allow anonymous access to /version (HTTP 401): run the promotion where Argo CD is in the same cluster (the access-argocd capability then provides a token), or set config.token",
   "source": "http://fake-k8s-api:8080/locked",
   "version": ""
 }
@@ -88,7 +99,7 @@ the same output in the Kargo UI. Long lists and strings are trimmed here.
 The promotion stops with this message:
 
 ```text
-Step failed (stderr: cluster-version: http://fake-k8s-api:8080/locked does not allow anonymous access to /version (HTTP 401): set config.token
+Step failed (stderr: cluster-version: http://fake-k8s-api:8080/locked does not allow anonymous access to /version (HTTP 401): run the promotion where Argo CD is in the same cluster (the access-argocd capability then provides a token), or set config.token
 )
 
 ```
@@ -106,9 +117,10 @@ Demo project `custom-steps-manifest-quality` ([kargo/projects/manifest-quality](
 
 - Read-only and idempotent, so retries are safe.
 - The token is sent in a header file, never on a command line, and never printed.
-- The demo sets `insecureSkipTLSVerify: true` because custom-step containers may not have the cluster CA mounted. In real
-  use, set `caCert`.
+- The demo sets `insecureSkipTLSVerify: true` as a fallback for when Argo CD is remote (then no CA is available). When the
+  capability provides the CA, it is used and verification stays on.
 - Why not ask Argo CD? Argo CD knows each cluster's version, but keeps it in its internal cluster cache, not on any
   resource a promotion can read. Applications don't record it.
 - Tested: harness fixtures in [`test/fixtures/cluster-version`](../../../../test/fixtures/cluster-version), against a fake API
-  server that reports a vendor-suffixed version and can require a token.
+  server that reports a vendor-suffixed version, can require a token, and has a TLS listener that refuses anonymous
+  requests like k3s (to test the capability's token + CA).

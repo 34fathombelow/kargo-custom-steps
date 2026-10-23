@@ -1,0 +1,12 @@
+description: without the capability's credentials, a cluster that refuses anonymous /version gets a message naming both fixes
+config:
+  insecureSkipTLSVerify: true
+env:
+  KUBERNETES_SERVICE_HOST: fake-k8s-api
+  KUBERNETES_SERVICE_PORT: "8443"
+docker: ["--network", "runstep-k8s-api"]
+expect:
+  status: Failed
+  messageContains:
+  - "does not allow anonymous access to /version (HTTP 401)"
+  - "the access-argocd capability then provides a token"

@@ -145,7 +145,7 @@ Steps that need more:
 | `argocd-drift-check` | Argo CD managing the target app, integrated with the `custom-steps` Kargo agent; Kargo capability `access-argocd`. Demo: Argo CD syncs two sample apps ([prereqs/argocd-drift-check](prereqs/argocd-drift-check)), which needs Argo CD clusters `in-cluster` and `custom-steps-agent` |
 | `flyway-migrate` | A database reachable from the agent cluster, and its credentials. Demo: Argo CD deploys a Postgres to cluster `custom-steps-agent` ([prereqs/flyway-migrate](prereqs/flyway-migrate)); you create the `flyway-db` secret in the Kargo UI ([secrets/README.md](secrets/README.md)) |
 | `jsonnet-render` | Egress to GitHub only with `jbInstall: true` |
-| `cluster-version` | Network access from the agent cluster to the target cluster's API server (none for the default: the agent cluster itself) |
+| `cluster-version` | Kargo capability `access-argocd` (declared by the step): when Argo CD runs in the agent cluster it supplies the token for the local lookup. Otherwise the cluster must allow anonymous `/version` (k3s doesn't), or you pass a `token`. For a remote cluster: network access to its API server |
 | `kyverno-apply`, `opa-promotion-gate`, `deprecated-apis`, `manifest-diff` | Nothing beyond the common prerequisites |
 
 Each step's README has the full list: cluster add-ons and which cluster, reachable services, accounts, Kargo
@@ -364,8 +364,10 @@ number makes `deprecated-apis` check against the wrong version. `cluster-version
 API server's `/version` endpoint (readable without credentials on a default cluster) and outputs a clean `vX.Y.Z`,
 with vendor suffixes such as `-eks-...` stripped, for later steps.
 
-**Prerequisites:** network access from the agent cluster to the target API server. The default (no `apiServer`) asks the
-cluster the promotion runs on.
+**Prerequisites:** the default (no `apiServer`) asks the cluster the promotion runs on, authenticating with the
+`access-argocd` capability's in-cluster token when Argo CD runs in that cluster, and anonymously otherwise (fine on
+EKS, GKE and AKS, not on k3s). A remote cluster needs network access to its API server, and a `token` if it refuses
+anonymous `/version`.
 
 ```yaml
 - uses: cluster-version

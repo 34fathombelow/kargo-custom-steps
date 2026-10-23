@@ -5,26 +5,34 @@
 # version someone has to keep updating by hand, e.g.
 #   deprecated-apis:  k8sVersion: ${{ task.outputs['cluster'].version }}
 #
-# /version is readable without credentials on a default Kubernetes cluster
-# (the built-in system:public-info-viewer role), so usually only network access
-# to the API server is needed.
+# Credentials, for the default (the cluster the promotion runs on), in order:
+#   1. the in-cluster token + CA that the access-argocd capability provides when
+#      Argo CD runs in this cluster (any authenticated token may read /version);
+#   2. anonymous: allowed by default on most clusters (system:public-info-viewer),
+#      but not on k3s.
+# For another cluster, set apiServer (and token if it disables anonymous /version).
 #
 # Config (all optional):
 #   apiServer              API server URL; default: the cluster the promotion
 #                          runs on (https://kubernetes.default.svc)
 #   caCert                 PEM CA bundle to verify apiServer's certificate
-#   insecureSkipTLSVerify  skip certificate verification (/version is public
-#                          information, but a spoofed answer would mislead the gates)
+#   insecureSkipTLSVerify  skip certificate verification when no CA is available
+#                          (/version is public, but a spoofed answer would mislead the gates)
 #   token                  bearer token, only for clusters that disable anonymous /version
 #
 # Output (JSON): version (vX.Y.Z), gitVersion (raw, e.g. v1.30.4-eks-a737599),
-#   major, minor ("1.30": a string; prefer `version` in expressions), platform, source
+#   major, minor ("1.30": a string; prefer `version` in expressions), platform, source,
+#   auth (argocd-capability | token | anonymous)
 apiVersion: ee.kargo.akuity.io/v1alpha1
 kind: CustomPromotionStep
 metadata:
   name: cluster-version
 spec:
   image: ghcr.io/34fathombelow/toolbox:1.2.0
+  # For the default (local) cluster: when Argo CD runs in the same cluster, Kargo
+  # provisions an in-cluster token + CA, which is all /version needs.
+  capabilities:
+  - access-argocd
   defaultTimeout: 1m
   defaultErrorThreshold: 3
   resources:
@@ -58,19 +66,25 @@ spec:
     trap 'echo "cluster-version: unexpected error on line $LINENO" >&2' ERR
 
     server="$CV_API_SERVER"
+    auth=anonymous
     curl_args=(--silent --show-error --max-time 15 --output /tmp/version.json --write-out '%{http_code}')
     if [ -z "$server" ]; then
       # The cluster the promotion pod runs on.
       server="https://${KUBERNETES_SERVICE_HOST:-kubernetes.default.svc}:${KUBERNETES_SERVICE_PORT:-443}"
-      sa_ca=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      # access-argocd provisions token + ca.crt only for an in-cluster Argo CD, i.e.
+      # credentials for this very cluster. (A kubeconfig means a remote Argo CD:
+      # the wrong cluster, so it is ignored.)
+      argocd_creds="${STEP_DIRECTORY:-/coordination}/kubernetes/argocd"
+      if [ -z "$CV_TOKEN" ] && [ -f "$argocd_creds/token" ] && [ -f "$argocd_creds/ca.crt" ]; then
+        CV_TOKEN="$(cat "$argocd_creds/token")"
+        [ -n "$CV_CA_CERT" ] || CV_CA_CERT="$(cat "$argocd_creds/ca.crt")"
+        auth=argocd-capability
+      fi
       if [ -z "$CV_CA_CERT" ] && [ "$CV_INSECURE" != "true" ]; then
-        if [ -f "$sa_ca" ]; then
-          curl_args+=(--cacert "$sa_ca")
-        else
-          fail "no CA to verify the in-cluster API server (no service account CA is mounted): set config.caCert, or config.insecureSkipTLSVerify: true"
-        fi
+        fail "no CA to verify the in-cluster API server: Kargo provides one through the access-argocd capability when Argo CD runs in this cluster; otherwise set config.caCert, or config.insecureSkipTLSVerify: true"
       fi
     fi
+    if [ -n "$CV_TOKEN" ] && [ "$auth" = anonymous ]; then auth=token; fi
     case "$server" in
       http://*|https://*) ;;
       *) fail "config.apiServer must be an http(s) URL, got: $server" ;;
@@ -79,7 +93,8 @@ spec:
       printf '%s\n' "$CV_CA_CERT" > /tmp/cluster-ca.crt
       curl_args+=(--cacert /tmp/cluster-ca.crt)
     fi
-    [ "$CV_INSECURE" = "true" ] && curl_args+=(--insecure)
+    # Skip verification only when there is no CA to verify with.
+    if [ "$CV_INSECURE" = "true" ] && [ -z "$CV_CA_CERT" ]; then curl_args+=(--insecure); fi
     if [ -n "$CV_TOKEN" ]; then
       # Header file: the token never appears in argv.
       (umask 077; printf 'Authorization: Bearer %s\n' "$CV_TOKEN" > /tmp/auth.header)
@@ -91,8 +106,11 @@ spec:
     case "$code" in
       200) ;;
       401|403)
-        if [ -n "$CV_TOKEN" ]; then fail "$server rejected the token (HTTP $code)"; fi
-        fail "$server does not allow anonymous access to /version (HTTP $code): set config.token" ;;
+        case "$auth" in
+          argocd-capability) fail "$server rejected the in-cluster token from the access-argocd capability (HTTP $code)" ;;
+          token) fail "$server rejected the token (HTTP $code)" ;;
+        esac
+        fail "$server does not allow anonymous access to /version (HTTP $code): run the promotion where Argo CD is in the same cluster (the access-argocd capability then provides a token), or set config.token" ;;
       000) fail "cannot reach $server: $(tail -1 /tmp/curl.err) (is it reachable from the cluster where promotion pods run?)" ;;
       *) fail "$server returned HTTP $code for /version" ;;
     esac
@@ -103,15 +121,16 @@ spec:
     version="$(sed -nE 's/^v?([0-9]+)\.([0-9]+)\.([0-9]+).*/v\1.\2.\3/p' <<<"$git_version")"
     [ -n "$version" ] || fail "unrecognized gitVersion: $git_version"
 
-    jq --arg v "$version" --arg src "$server" '{
+    jq --arg v "$version" --arg src "$server" --arg auth "$auth" '{
         version: $v,
         gitVersion: .gitVersion,
         major: (.major // ""),
         minor: ($v | ltrimstr("v") | split(".")[:2] | join(".")),
         platform: (.platform // ""),
-        source: $src
+        source: $src,
+        auth: $auth
       }' /tmp/version.json > "$out"
-    echo "Cluster at $server runs Kubernetes $git_version ($version)."
+    echo "Cluster at $server runs Kubernetes $git_version ($version); authenticated: $auth."
   output:
     source:
       type: File

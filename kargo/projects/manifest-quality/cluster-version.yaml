@@ -24,8 +24,10 @@ spec:
   - uses: cluster-version
     as: cluster
     config:
-      # Demo only: custom-step containers may not have the cluster CA mounted.
-      # In real use, set caCert (and apiServer for a remote cluster).
+      # When Argo CD runs in this cluster, the step's access-argocd capability
+      # provides a token and the cluster CA, and TLS is verified. Otherwise there
+      # is no CA, and this demo falls back to skipping verification (in real use,
+      # set caCert, and apiServer for a remote cluster).
       insecureSkipTLSVerify: true
   - uses: deprecated-apis
     as: apis

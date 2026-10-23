@@ -9,4 +9,5 @@ expect:
   outputKeys:
   - error
   messageContains:
-  - "does not allow anonymous access to /version (HTTP 401): set config.token"
+  - "does not allow anonymous access to /version (HTTP 401)"
+  - "or set config.token"
