@@ -53,14 +53,6 @@ test-services-down: ## Remove the fixture services
 	test/fixtures/flyway-migrate/test-db.sh down
 	test/fixtures/cluster-version/fake-api.sh down
 
-.PHONY: test-db
-test-db: ## (Re)create the Postgres container the flyway-migrate fixtures use
-	test/fixtures/flyway-migrate/test-db.sh
-
-.PHONY: test-db-down
-test-db-down: ## Remove the flyway-migrate test Postgres
-	test/fixtures/flyway-migrate/test-db.sh down
-
 .PHONY: lint
 lint: ## Check kargo/ and the step conventions
 	go -C test run ./cmd/lint -repo $(CURDIR)
