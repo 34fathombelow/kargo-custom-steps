@@ -35,7 +35,6 @@ import (
 const (
 	nsPrefix        = "custom-steps-"
 	imageRegistry   = "ghcr.io/34fathombelow/"
-	projectLabel    = "kargo.akuity.io/project"
 	shardLabel      = "kargo.akuity.io/shard"
 )
 
@@ -58,7 +57,7 @@ var builtinSteps = set(
 	"snow-update", "snow-wait-for-condition", "tf-apply", "tf-output", "tf-plan", "wait-for-approval",
 )
 
-var projectKinds = set("Namespace", "Project", "ProjectConfig", "Warehouse", "Stage", "PromotionTask")
+var projectKinds = set("Project", "ProjectConfig", "Warehouse", "Stage", "PromotionTask")
 
 type object struct {
 	file string
@@ -228,30 +227,30 @@ func (l *linter) checkProject(dir string, objs []object, customSteps map[string]
 			tasks[o.name()] = true
 		}
 	}
-	var sawNamespace, sawProject bool
+	var sawProject bool
 	for _, o := range objs {
 		kind := o.kind()
 		switch {
 		case kind == "Secret":
 			l.errorf(o.file, "Secrets must never be synced from git; create them in the Kargo UI and document them in secrets/README.md")
 			continue
+		case kind == "Namespace":
+			l.errorf(o.file, "don't add a Namespace: Kargo's Project webhook creates the project's namespace")
+			continue
 		case !projectKinds[kind]:
 			l.errorf(o.file, "%s does not belong in a Kargo demo project", kind)
 			continue
 		}
 		switch kind {
-		case "Namespace":
-			sawNamespace = true
-			if o.name() != ns {
-				l.errorf(o.file, "Namespace must be named %s", ns)
-			}
-			if str(o.doc, "metadata", "labels", projectLabel) != "true" {
-				l.errorf(o.file, "Namespace needs label %s: \"true\" so the Project adopts it", projectLabel)
-			}
 		case "Project":
 			sawProject = true
 			if o.name() != ns {
 				l.errorf(o.file, "Project must be named %s", ns)
+			}
+			// The webhook creates the namespace when the Project is admitted, so
+			// the Project must sync before anything that lives in the namespace.
+			if str(o.doc, "metadata", "annotations", "argocd.argoproj.io/sync-wave") != "-1" {
+				l.errorf(o.file, "Project %s needs annotation argocd.argoproj.io/sync-wave: \"-1\" so its namespace exists before the rest syncs", o.name())
 			}
 		default:
 			if o.namespace() != ns {
@@ -273,8 +272,8 @@ func (l *linter) checkProject(dir string, objs []object, customSteps map[string]
 		}
 		l.checkStepRefs(o, customSteps, tasks)
 	}
-	if !sawNamespace || !sawProject {
-		l.errorf(filepath.Join(l.repo, "kargo", "projects", dir), "needs project.yaml with a Namespace and a Project named %s", ns)
+	if !sawProject {
+		l.errorf(filepath.Join(l.repo, "kargo", "projects", dir), "needs project.yaml with a Project named %s", ns)
 	}
 }
 

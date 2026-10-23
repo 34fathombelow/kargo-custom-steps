@@ -659,7 +659,7 @@ expect:
 ```
 kargo/                  everything Argo CD syncs into the Kargo control plane
   custom-steps/<group>/<step>/   CustomPromotionStep + README
-  projects/<group>/              demo project: Namespace, Project, Warehouse, PromotionTasks, Stages
+  projects/<group>/              demo project: Project (Kargo creates its namespace), Warehouse, PromotionTasks, Stages
 argocd/                 root.yaml (created once in the Argo CD UI) and the apps it syncs (argocd/apps/)
 docker/<tool>/          step images (built by GitHub Actions, published to ghcr.io/34fathombelow)
 policy/                 policies used by the demos
