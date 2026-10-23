@@ -145,7 +145,7 @@ Steps that need more:
 | `argocd-drift-check` | Argo CD managing the target app, integrated with the `custom-steps` Kargo agent; Kargo capability `access-argocd`. Demo: Argo CD syncs two sample apps ([prereqs/argocd-drift-check](prereqs/argocd-drift-check)), which needs Argo CD clusters `in-cluster` and `custom-steps-agent` |
 | `flyway-migrate` | A database reachable from the agent cluster, and its credentials. Demo: Argo CD deploys a Postgres to cluster `custom-steps-agent` ([prereqs/flyway-migrate](prereqs/flyway-migrate)); you create the `flyway-db` secret in the Kargo UI ([secrets/README.md](secrets/README.md)) |
 | `jsonnet-render` | Egress to GitHub only with `jbInstall: true` |
-| `cluster-version` | Kargo capability `access-argocd` (declared by the step): when Argo CD runs in the agent cluster it supplies the token for the local lookup. Otherwise you pass a `token` (any identity on the cluster; it needs no permissions). Anonymous `/version` is refused by many clusters, including k3s and EKS. For a remote cluster: network access to its API server |
+| `cluster-version` | An Argo CD agent in the **same namespace as the `custom-steps` Kargo agent's promotion controller** (it reads `argocd_cluster_info` from the `argocd-metrics` Service, port 8082). No capability or credentials |
 | `kyverno-apply`, `opa-promotion-gate`, `deprecated-apis`, `manifest-diff` | Nothing beyond the common prerequisites |
 
 Each step's README has the full list: cluster add-ons and which cluster, reachable services, accounts, Kargo
@@ -360,24 +360,22 @@ Full config, outputs and demo walkthrough: [kargo/custom-steps/manifest-quality/
 #### cluster-version
 
 Hard-coding each Stage's Kubernetes version means someone has to update it after every cluster upgrade, and a stale
-number makes `deprecated-apis` check against the wrong version. `cluster-version` asks the cluster instead: it reads the
-API server's `/version` endpoint (any authenticated identity may read it) and outputs a clean `vX.Y.Z`,
-with vendor suffixes such as `-eks-...` stripped, for later steps.
+number makes `deprecated-apis` check against the wrong version. `cluster-version` asks Argo CD instead: Argo CD's
+application controller publishes each managed cluster's version as the `argocd_cluster_info` metric on its
+`argocd-metrics` Service, with no authentication. The step reads it and outputs a clean `vX.Y.Z`, with vendor suffixes
+such as `+k3s1` stripped, for later steps.
 
-**Prerequisites:** the default (no `apiServer`) asks the cluster the promotion runs on, authenticating with the
-`access-argocd` capability's in-cluster token when Argo CD runs in that cluster. Otherwise it needs a `token`: it tries
-anonymously, but many clusters refuse anonymous `/version` (k3s, and EKS, which limits anonymous requests to health
-checks). A remote cluster also needs network access to its API server.
+**Prerequisites:** **the Argo CD agent must run in the same namespace as the Kargo agent's promotion controller** (on
+Akuity, both in `akuity` on the agent cluster), so `http://argocd-metrics:8082/metrics` resolves from the promotion pod.
+Otherwise set `metricsURL`. No capability or credentials are needed.
 
 ```yaml
 - uses: cluster-version
-  as: cluster
-  config:
-    apiServer: https://prod-cluster.example.com   # omit to ask the cluster the promotion runs on
+  as: cluster          # config.cluster picks one when Argo CD manages several clusters
 - uses: deprecated-apis
   config:
     path: ./out
-    k8sVersion: ${{ outputs['cluster'].version }}  # e.g. v1.33.4
+    k8sVersion: ${{ outputs['cluster'].version }}  # e.g. v1.35.5
 ```
 
 [Step definition](kargo/custom-steps/manifest-quality/cluster-version/cluster-version.yaml) ·

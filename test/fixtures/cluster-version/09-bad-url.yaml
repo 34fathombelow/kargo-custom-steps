@@ -1,0 +1,7 @@
+description: a metricsURL that isn't http(s) is rejected before any request
+config:
+  metricsURL: argocd-metrics:8082
+expect:
+  status: Failed
+  messageContains:
+  - "config.metricsURL must be an http(s) URL"

@@ -1,0 +1,12 @@
+description: reads the only cluster Argo CD reports (what each Akuity Argo CD agent publishes) from the default metrics URL, with no config
+config: {}
+docker: ["--network", "runstep-k8s-api"]
+expect:
+  status: Succeeded
+  output:
+    version: v1.35.5
+    k8sVersion: v1.35.5
+    minor: "1.35"
+    cluster: custom-steps-agent
+    server: http://cluster-custom-steps-agent:8001
+    source: http://argocd-metrics:8082/metrics

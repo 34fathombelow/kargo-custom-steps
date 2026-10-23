@@ -1,0 +1,9 @@
+description: a cluster name Argo CD doesn't know is reported with the names it does know
+config:
+  cluster: staging
+  metricsURL: http://fake-argocd:8082/multi/metrics
+docker: ["--network", "runstep-k8s-api"]
+expect:
+  status: Failed
+  messageContains:
+  - 'Argo CD reports no cluster named "staging" (it reports: prod, test, dev)'

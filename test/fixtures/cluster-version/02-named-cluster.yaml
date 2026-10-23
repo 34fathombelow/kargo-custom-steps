@@ -1,0 +1,13 @@
+description: picks a cluster by name when Argo CD manages several, regardless of label order, and strips the vendor suffix
+config:
+  cluster: dev
+  metricsURL: http://fake-argocd:8082/multi/metrics
+docker: ["--network", "runstep-k8s-api"]
+expect:
+  status: Succeeded
+  output:
+    version: v1.34.2
+    k8sVersion: v1.34.2+k3s1
+    minor: "1.34"
+    cluster: dev
+    server: http://cluster-dev:8001

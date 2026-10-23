@@ -1,6 +1,0 @@
-description: the in-cluster default refuses to skip TLS verification silently when no service account CA is mounted
-config: {}
-expect:
-  status: Failed
-  messageContains:
-  - "set config.caCert, or config.insecureSkipTLSVerify: true"

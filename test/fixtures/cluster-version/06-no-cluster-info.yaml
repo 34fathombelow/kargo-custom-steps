@@ -1,0 +1,8 @@
+description: metrics without argocd_cluster_info (the wrong endpoint, or no managed clusters) fail with a clear message
+config:
+  metricsURL: http://fake-argocd:8082/no-cluster/metrics
+docker: ["--network", "runstep-k8s-api"]
+expect:
+  status: Failed
+  messageContains:
+  - "has no argocd_cluster_info metric"

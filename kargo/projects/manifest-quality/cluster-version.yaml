@@ -2,9 +2,9 @@
 # custom step, then checks the manifests against it with deprecated-apis, so
 # nobody has to keep a version number in the Stage up to date.
 #
-# The demo asks the cluster the promotion runs on (the custom-steps agent
-# cluster). For a Stage that deploys elsewhere, set apiServer to that cluster's
-# API URL; the promotion pod must be able to reach it.
+# The version comes from the Argo CD agent that runs next to the Kargo agent
+# (same namespace, on the custom-steps agent cluster), which reports the one
+# cluster it manages, so the step needs no config here.
 apiVersion: kargo.akuity.io/v1alpha1
 kind: PromotionTask
 metadata:
@@ -23,12 +23,6 @@ spec:
         path: ./src
   - uses: cluster-version
     as: cluster
-    config:
-      # When Argo CD runs in this cluster, the step's access-argocd capability
-      # provides a token and the cluster CA, and TLS is verified. Otherwise there
-      # is no CA, and this demo falls back to skipping verification (in real use,
-      # set caCert, and apiServer for a remote cluster).
-      insecureSkipTLSVerify: true
   - uses: deprecated-apis
     as: apis
     config:

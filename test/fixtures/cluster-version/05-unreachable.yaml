@@ -1,8 +1,0 @@
-description: an API server the promotion pod cannot reach names the likely cause
-config:
-  apiServer: https://cluster.invalid
-expect:
-  status: Failed
-  messageContains:
-  - "cannot reach https://cluster.invalid"
-  - "reachable from the cluster where promotion pods run"

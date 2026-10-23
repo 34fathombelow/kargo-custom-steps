@@ -44,7 +44,7 @@ test: ## Run step fixtures with the local harness (all, or STEP=<step>)
 	done; exit $$fail
 
 .PHONY: test-services
-test-services: ## Start the services some fixtures call (flyway-migrate's Postgres, cluster-version's fake API)
+test-services: ## Start the services some fixtures call (flyway-migrate's Postgres, cluster-version's fake Argo CD metrics)
 	test/fixtures/flyway-migrate/test-db.sh
 	test/fixtures/cluster-version/fake-api.sh
 

@@ -1,0 +1,7 @@
+description: without the argocd-metrics Service in the promotion pod's namespace, the step names the prerequisite
+config: {}
+expect:
+  status: Failed
+  messageContains:
+  - "cannot reach Argo CD metrics at http://argocd-metrics:8082/metrics"
+  - "the Argo CD agent must run in the same namespace as the Kargo agent's promotion controller"

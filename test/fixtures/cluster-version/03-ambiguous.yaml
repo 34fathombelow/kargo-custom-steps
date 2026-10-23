@@ -1,0 +1,10 @@
+description: with several clusters and no config.cluster, the step lists them instead of guessing
+config:
+  metricsURL: http://fake-argocd:8082/multi/metrics
+docker: ["--network", "runstep-k8s-api"]
+expect:
+  status: Failed
+  output:
+    version: ""
+  messageContains:
+  - "Argo CD reports 3 clusters (prod, test, dev): set config.cluster"

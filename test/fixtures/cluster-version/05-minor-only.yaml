@@ -1,0 +1,11 @@
+description: a version reported without a patch number (X.Y) becomes vX.Y.0
+config:
+  metricsURL: http://fake-argocd:8082/minor-only/metrics
+docker: ["--network", "runstep-k8s-api"]
+expect:
+  status: Succeeded
+  output:
+    version: v1.34.0
+    k8sVersion: "1.34"
+    minor: "1.34"
+    cluster: legacy

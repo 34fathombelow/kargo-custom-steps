@@ -1,0 +1,8 @@
+description: a URL that isn't a metrics endpoint reports the HTTP status
+config:
+  metricsURL: http://fake-argocd:8082/nope
+docker: ["--network", "runstep-k8s-api"]
+expect:
+  status: Failed
+  messageContains:
+  - "returned HTTP 404"
