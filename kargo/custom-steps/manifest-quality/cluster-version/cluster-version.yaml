@@ -6,10 +6,13 @@
 #   deprecated-apis:  k8sVersion: ${{ task.outputs['cluster'].version }}
 #
 # Credentials, for the default (the cluster the promotion runs on), in order:
-#   1. the in-cluster token + CA that the access-argocd capability provides when
+#   1. config.token, if set (always wins);
+#   2. the in-cluster token + CA that the access-argocd capability provides when
 #      Argo CD runs in this cluster (any authenticated token may read /version);
-#   2. anonymous: allowed by default on most clusters (system:public-info-viewer),
-#      but not on k3s.
+#   3. the pod's own service-account token, when one is mounted in the container
+#      (to test: Stage annotation ee.kargo.akuity.io/promotion-sa);
+#   4. anonymous, as a last resort: many clusters refuse it (k3s; EKS limits
+#      anonymous requests to health checks).
 # For another cluster, set apiServer (and token if it disables anonymous /version).
 #
 # Config (all optional):
@@ -22,7 +25,8 @@
 #
 # Output (JSON): version (vX.Y.Z), gitVersion (raw, e.g. v1.30.4-eks-a737599),
 #   major, minor ("1.30": a string; prefer `version` in expressions), platform, source,
-#   auth (argocd-capability | token | anonymous)
+#   auth (argocd-capability | pod-service-account | token | anonymous),
+#   argocdCredentials, podServiceAccountToken (present | absent)
 apiVersion: ee.kargo.akuity.io/v1alpha1
 kind: CustomPromotionStep
 metadata:
@@ -60,7 +64,7 @@ spec:
     CV_CA_CERT="$(jq -j . <<<"$CV_CA_CERT")"
     CV_TOKEN="$(jq -j . <<<"$CV_TOKEN")"
     fail() {
-      jq -n --arg e "$*" --arg src "${server:-}" --arg ac "${argocd_provided:-}" '{version: "", source: $src, argocdCredentials: $ac, error: $e}' > "$out"
+      jq -n --arg e "$*" --arg src "${server:-}" --arg ac "${argocd_provided:-}" --arg sat "${sa_token:-}" '{version: "", source: $src, argocdCredentials: $ac, podServiceAccountToken: $sat, error: $e}' > "$out"
       echo "cluster-version: $*" >&2; exit 1
     }
     trap 'echo "cluster-version: unexpected error on line $LINENO" >&2' ERR
@@ -74,6 +78,11 @@ spec:
     if [ -f "$argocd_creds/token" ] && [ -f "$argocd_creds/ca.crt" ]; then argocd_provided=token
     elif [ -f "$argocd_creds/kubeconfig" ]; then argocd_provided=kubeconfig
     else argocd_provided=none; fi
+    # The pod's own service-account token, if Kubernetes mounted one into this
+    # container (e.g. with the Stage annotation ee.kargo.akuity.io/promotion-sa).
+    # CV_SA_DIR is a test hook; the real path is the standard one.
+    sa_dir="${CV_SA_DIR:-/var/run/secrets/kubernetes.io/serviceaccount}"
+    if [ -f "$sa_dir/token" ]; then sa_token=present; else sa_token=absent; fi
     curl_args=(--silent --show-error --max-time 15 --output /tmp/version.json --write-out '%{http_code}')
     if [ -z "$server" ]; then
       # The cluster the promotion pod runs on.
@@ -85,6 +94,10 @@ spec:
         CV_TOKEN="$(cat "$argocd_creds/token")"
         [ -n "$CV_CA_CERT" ] || CV_CA_CERT="$(cat "$argocd_creds/ca.crt")"
         auth=argocd-capability
+      elif [ -z "$CV_TOKEN" ] && [ "$sa_token" = present ]; then
+        CV_TOKEN="$(cat "$sa_dir/token")"
+        if [ -z "$CV_CA_CERT" ] && [ -f "$sa_dir/ca.crt" ]; then CV_CA_CERT="$(cat "$sa_dir/ca.crt")"; fi
+        auth=pod-service-account
       fi
       if [ -z "$CV_CA_CERT" ] && [ "$CV_INSECURE" != "true" ]; then
         fail "no CA to verify the in-cluster API server: Kargo provides one through the access-argocd capability when Argo CD runs in this cluster; otherwise set config.caCert, or config.insecureSkipTLSVerify: true"
@@ -115,13 +128,14 @@ spec:
         case "$auth" in
           argocd-capability) fail "$server rejected the in-cluster token from the access-argocd capability (HTTP $code)" ;;
           token) fail "$server rejected the token (HTTP $code)" ;;
+          pod-service-account) fail "$server rejected the pod's service-account token (HTTP $code)" ;;
         esac
         case "$argocd_provided" in
           kubeconfig) why="the access-argocd capability provided a kubeconfig, so this agent's Argo CD is remote (another cluster) and Kargo gives no token for this one" ;;
           none) why="the access-argocd capability provided no credentials (is Kargo's Argo CD integration enabled for this agent?)" ;;
           *) why="no token was available" ;;
         esac
-        fail "$server does not allow anonymous access to /version (HTTP $code): $why. Set config.token, or allow anonymous /version on the cluster" ;;
+        fail "$server does not allow anonymous access to /version (HTTP $code): $why; no pod service-account token is mounted in this step (podServiceAccountToken: $sa_token). Set config.token, or allow anonymous /version on the cluster" ;;
       000) fail "cannot reach $server: $(tail -1 /tmp/curl.err) (is it reachable from the cluster where promotion pods run?)" ;;
       *) fail "$server returned HTTP $code for /version" ;;
     esac
@@ -132,7 +146,7 @@ spec:
     version="$(sed -nE 's/^v?([0-9]+)\.([0-9]+)\.([0-9]+).*/v\1.\2.\3/p' <<<"$git_version")"
     [ -n "$version" ] || fail "unrecognized gitVersion: $git_version"
 
-    jq --arg v "$version" --arg src "$server" --arg auth "$auth" --arg ac "$argocd_provided" '{
+    jq --arg v "$version" --arg src "$server" --arg auth "$auth" --arg ac "$argocd_provided" --arg sat "$sa_token" '{
         version: $v,
         gitVersion: .gitVersion,
         major: (.major // ""),
@@ -140,7 +154,8 @@ spec:
         platform: (.platform // ""),
         source: $src,
         auth: $auth,
-        argocdCredentials: $ac
+        argocdCredentials: $ac,
+        podServiceAccountToken: $sat
       }' /tmp/version.json > "$out"
     echo "Cluster at $server runs Kubernetes $git_version ($version); authenticated: $auth."
   output:

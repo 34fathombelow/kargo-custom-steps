@@ -9,6 +9,8 @@ expect:
   status: Failed
   output:
     argocdCredentials: none
+    podServiceAccountToken: absent
   messageContains:
   - "does not allow anonymous access to /version (HTTP 401)"
   - "the access-argocd capability provided no credentials"
+  - "no pod service-account token is mounted in this step"

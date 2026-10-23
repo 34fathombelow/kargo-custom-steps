@@ -71,6 +71,11 @@ metadata:
     kargo.akuity.io/shard: custom-steps
   annotations:
     kargo.akuity.io/color: red
+    # Experiment: run the promotion pod as the agent namespace's `default`
+    # service account. The cluster-version step reports whether that account's
+    # token was mounted into the step container (output podServiceAccountToken)
+    # and uses it if so.
+    ee.kargo.akuity.io/promotion-sa: default
 spec:
   shard: custom-steps
   requestedFreight:
