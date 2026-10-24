@@ -1,3 +1,12 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/custom-promotion-steps-kargo-dark.png">
+    <img src="docs/images/custom-promotion-steps-kargo-light.png" width="700"
+         alt="Kargo kangaroo floating in space holding a ship's wheel above grey moon-rock stairs that lead to a prod flag, thinking: I asked for a promotion. They gave me stairs."
+         title="The Warehouse said there'd be an elevator.">
+  </picture>
+</p>
+
 # Kargo Custom Promotion Steps
 
 ## Overview
