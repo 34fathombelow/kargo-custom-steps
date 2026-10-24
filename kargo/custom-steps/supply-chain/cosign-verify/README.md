@@ -128,14 +128,14 @@ the same output in the Kargo UI. Long lists and strings are trimmed here.
 }
 ```
 
-**Blocked**: an unsigned image blocks the promotion ([`unsigned.yaml`](../../../../test/fixtures/cosign-verify/unsigned.yaml)). Step status: `Failed`.
+**Blocked**: an unsigned image (Docker Official Images are not signed with cosign) blocks the promotion ([`unsigned.yaml`](../../../../test/fixtures/cosign-verify/unsigned.yaml)). Step status: `Failed`.
 
 ```json
 {
   "digest": "",
   "error": "no signatures found",
   "identities": [],
-  "image": "ghcr.io/akuity/guestbook:v0.0.2",
+  "image": "mirror.gcr.io/library/alpine:3.24.2",
   "links": [],
   "logIndexes": [],
   "signatures": 0,
@@ -146,7 +146,7 @@ the same output in the Kargo UI. Long lists and strings are trimmed here.
 The promotion stops with this message:
 
 ```text
-Step failed (stderr: Promotion blocked: ghcr.io/akuity/guestbook:v0.0.2 failed signature verification: no signatures found
+Step failed (stderr: Promotion blocked: mirror.gcr.io/library/alpine:3.24.2 failed signature verification: no signatures found
 )
 
 ```
@@ -159,7 +159,7 @@ Demo project `custom-steps-supply-chain` ([kargo/projects/supply-chain](../../..
 | Stage | Image | Expected |
 |---|---|---|
 | `cosign-verified` | `ghcr.io/sigstore/cosign/cosign:v3.1.3`, signed by `keyless@projectsigstore.iam.gserviceaccount.com` (issuer `https://accounts.google.com`) | Promotion succeeds; output lists the signer and links to the Rekor entries |
-| `cosign-unsigned` | `ghcr.io/akuity/guestbook:v0.0.2`, unsigned | Promotion fails: `failed signature verification: no signatures found` |
+| `cosign-unsigned` | `alpine:3.24.2` (Docker Official Images aren't signed with cosign) | Promotion fails: `failed signature verification: no signatures found` |
 
 ## Notes
 
