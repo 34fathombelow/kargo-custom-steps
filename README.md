@@ -115,19 +115,25 @@ before you write one:
 
 Every step and demo needs:
 
-* Kargo Enterprise with **pod-based promotions** (Akuity Platform), and a **Kargo agent serving the `custom-steps`
-  shard**. The agent must run the full set of controllers for that shard: Warehouses (Freight discovery), Stages and
-  Promotions. Every demo Stage and Warehouse is pinned to that shard; to use another one, run `make set-shard SHARD=<name>`.
+* Kargo Enterprise with **pod-based promotions** (Akuity Platform), and this **Kargo agent**:
+
+  | Name in Kargo (agent and shard) | Cluster | Needed for |
+  |---|---|---|
+  | `custom-steps` | Where the promotion pods run, so every custom step runs here. Argo CD also deploys the demo Postgres and the workloads of the two sample apps `argocd-drift-check` inspects to this cluster | Everything |
+
+  * The agent must run the full set of controllers for its shard: Warehouses (Freight discovery), Stages and Promotions.
+  * Every demo Stage and Warehouse is pinned to the shard `custom-steps`. To use another one, run `make set-shard SHARD=<name>`.
+  * Argo CD reaches this cluster as `custom-steps-agent` (the destination in `argocd/apps/prereqs-flyway-migrate.yaml` and
+    `prereqs/argocd-drift-check/applications.yaml`). Different name? Run `scripts/fork.sh --agent-cluster <name>`.
 * **Argo CD with these clusters registered** under these names. Argo CD is the only way anything here reaches a
   cluster: everything is GitOps, and nobody needs `kubectl` or access to the Kargo control plane.
 
   | Name in Argo CD | Cluster | Argo CD deploys there | Needed for |
   |---|---|---|---|
   | `kargo1` | The Kargo control plane | The custom steps and every demo project (`argocd/apps/kargo-custom-steps.yaml`) | Everything |
-  | `custom-steps-agent` | The cluster running the `custom-steps` shard's Kargo agent, where promotion pods run | The demo Postgres, and the workloads of the two sample apps `argocd-drift-check` inspects | The `data` and `release-insight` demos |
   | `in-cluster` | Argo CD itself | The root app-of-apps and the two sample Applications | Setup, and the `release-insight` demo |
 
-  * Different names? Run `scripts/fork.sh --argocd-cluster <kargo name> --agent-cluster <agent name>` ([Forking](#forking)).
+  * Different names? Run `scripts/fork.sh --argocd-cluster <kargo name>` ([Forking](#forking)).
   * On the Akuity Platform, enable **Declarative Management** on the Argo CD instance, so `in-cluster` is available and
     apps can create other apps.
   * For `argocd-drift-check`, this must be the Argo CD integrated with the `custom-steps` Kargo agent: the step reads
