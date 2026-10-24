@@ -1,6 +1,6 @@
-description: an unsigned image (Docker Official Images are not signed with cosign) blocks the promotion
+description: an unsigned image blocks the promotion
 config:
-  image: mirror.gcr.io/library/alpine:3.24.2
+  image: quay.io/prometheus/node-exporter:v1.9.1
   certificateIdentityRegexp: .*
   certificateOidcIssuerRegexp: .*
 expect:
