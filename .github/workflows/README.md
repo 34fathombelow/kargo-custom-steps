@@ -6,7 +6,7 @@ every third-party action is pinned to a commit SHA (Renovate keeps the pins curr
 | Workflow | Runs on | What it does |
 |---|---|---|
 | [check.yaml](check.yaml) | Every pull request; pushes to `main` | Lints the repository and runs every step's tests |
-| [images.yaml](images.yaml) | Changes under `docker/`; weekly; by hand | Builds the step images, and on `main` publishes, attests and signs them |
+| [images.yaml](images.yaml) | Changes under `docker/`; by hand | Builds the step images, and on `main` publishes, attests and signs them |
 | [release.yaml](release.yaml) | Pushing a `v*` tag | Publishes the custom steps as GitHub Release assets, pinned to image digests |
 
 ## check.yaml
@@ -22,7 +22,7 @@ Two jobs, both required to pass before merging:
 - **test**
   - Builds every image in `docker/` locally, without pushing.
   - Starts the services some fixtures call (`make test-services`): a throwaway Postgres for `flyway-migrate` and a fake
-    Kubernetes API for `cluster-version`.
+    Argo CD metrics endpoint for `cluster-version`.
   - Runs every step's test fixtures (`make test`) with the local harness in [test/cmd/runstep](../../test/cmd/runstep).
 
 It needs no secrets.
@@ -35,7 +35,6 @@ Builds `docker/<tool>/` images for `linux/amd64` and `linux/arm64`.
 |---|---|---|
 | Pull request touching `docker/` | Only the changed ones | No, build only |
 | Push to `main` touching `docker/` | Only the changed ones | Yes |
-| Weekly, Monday 04:17 UTC | `trivy` | Yes. This refreshes its baked-in vulnerability databases |
 | Run workflow (Actions tab), input `tool` | One tool, or `all` | Yes |
 
 - **Where images go:** `ghcr.io/<repository owner>/<tool>`. Each image gets two tags: `<version>`, read from

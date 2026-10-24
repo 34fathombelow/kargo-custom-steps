@@ -14,8 +14,8 @@ ARG YQ_VERSION=4.54.1
 FROM golang:${GO_VERSION}-alpine AS build
 ARG JSONNET_VERSION
 ARG JB_VERSION
-RUN CGO_ENABLED=0 go install github.com/google/go-jsonnet/cmd/jsonnet@${JSONNET_VERSION} && \
-    CGO_ENABLED=0 go install github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@${JB_VERSION}
+RUN CGO_ENABLED=0 go install -trimpath -ldflags='-s -w' github.com/google/go-jsonnet/cmd/jsonnet@${JSONNET_VERSION} && \
+    CGO_ENABLED=0 go install -trimpath -ldflags='-s -w' github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@${JB_VERSION}
 
 FROM mikefarah/yq:${YQ_VERSION} AS yq
 

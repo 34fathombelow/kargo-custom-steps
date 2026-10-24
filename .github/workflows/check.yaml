@@ -36,7 +36,7 @@ jobs:
     - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
     - name: Build step images
       run: make images
-    - name: Start the fixture services (Postgres, fake Kubernetes API)
+    - name: Start the fixture services (Postgres, fake Argo CD metrics)
       run: make test-services
     - name: Run step fixtures
       run: make test

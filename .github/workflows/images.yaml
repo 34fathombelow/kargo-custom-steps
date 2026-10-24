@@ -3,7 +3,6 @@ name: Images
 # Builds the step images in docker/<tool>/ for linux/amd64 and linux/arm64.
 #   pull_request: build changed images (no push)
 #   push to main: build and push changed images, attest and sign them
-#   schedule:     rebuild trivy weekly so its baked-in vulnerability DB stays fresh
 #   dispatch:     rebuild one image (or all) by hand
 # Tags: <version> from `ARG <TOOL>_VERSION` in the Dockerfile, plus an immutable
 # <version>-<date>-<short sha>.
@@ -14,8 +13,6 @@ on:
   push:
     branches: [main]
     paths: ["docker/**", "scripts/image-tag.sh", ".github/workflows/images.yaml"]
-  schedule:
-  - cron: "17 4 * * 1"
   workflow_dispatch:
     inputs:
       tool:
@@ -44,7 +41,6 @@ jobs:
       run: |
         all="$(ls docker)"
         case "$EVENT" in
-          schedule) tools="trivy" ;;
           workflow_dispatch) if [ "$INPUT_TOOL" = "all" ]; then tools="$all"; else tools="$INPUT_TOOL"; fi ;;
           *)
             # First push of a branch (base is all zeros) or an unknown base: build everything.

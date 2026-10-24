@@ -1,0 +1,14 @@
+description: a database whose driver the image leaves out names the supported ones instead of a raw Flyway error
+config:
+  url: jdbc:snowflake://account.example.com/?db=app
+  username: app
+  password: secret
+  migrationsPath: ./src/demo-fixtures/flyway-migrate/migrations
+  connectRetries: 0
+files:
+  src/demo-fixtures/flyway-migrate: demo-fixtures/flyway-migrate
+expect:
+  status: Failed
+  messageContains:
+  - "this step's image has no driver for jdbc:snowflake"
+  - "it supports PostgreSQL, MySQL/MariaDB, SQL Server, Oracle"

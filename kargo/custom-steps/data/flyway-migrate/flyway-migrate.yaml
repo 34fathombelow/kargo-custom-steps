@@ -99,6 +99,10 @@ spec:
         28P01|28000) fail "authentication failed for user '$user' (check the flyway-db Secret)" ;;
         08*) fail "cannot reach $host: is prereqs/flyway-migrate deployed and reachable from the custom-steps agent cluster?" ;;
       esac
+      case "$msg" in
+        *"No Flyway database plugin found"*)
+          fail "this step's image has no driver for $(cut -d: -f1-2 <<<"$url"): it supports PostgreSQL, MySQL/MariaDB, SQL Server, Oracle, SQLite, H2, HSQLDB and Firebird (see docker/flyway/README.md to add one)" ;;
+      esac
       [ -n "$msg" ] || msg="$(tail -5 "/tmp/$op.err")"
       fail "flyway $op failed${code:+ ($code)}: $msg"
     }

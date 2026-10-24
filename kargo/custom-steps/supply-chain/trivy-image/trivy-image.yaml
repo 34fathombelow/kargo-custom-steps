@@ -1,9 +1,9 @@
 # CustomPromotionStep: trivy-image
 #
 # Scans a container image for known vulnerabilities with Trivy and blocks the
-# promotion when it finds any at the configured severities. The image ships
-# with the vulnerability DB and Java index DB pre-downloaded, so a scan only
-# needs network access to pull the image being scanned.
+# promotion when it finds any at the configured severities. Each scan downloads
+# the current vulnerability DB (and the Java DB only for images with Java
+# artifacts) from mirror.gcr.io, so the gate never uses a stale DB.
 #
 # Config:
 #   image          - image to scan (required). Prefer a digest reference, e.g.
@@ -76,7 +76,17 @@ spec:
       export TRIVY_USERNAME="$SCAN_USERNAME" TRIVY_PASSWORD="$SCAN_PASSWORD"
     fi
 
+    # Download the current vulnerability DB first, so a missing route to the DB
+    # mirror is reported as such rather than as a failed scan.
+    if ! trivy image --download-db-only --quiet 2>/tmp/trivy-db.err; then
+      fail "could not download Trivy's vulnerability DB from mirror.gcr.io (the custom-steps agent cluster needs egress to it): $(tail -n 1 /tmp/trivy-db.err)"
+    fi
+    args+=(--skip-db-update)
+
     if ! trivy "${args[@]}" "$SCAN_IMAGE" 2>/tmp/trivy.err; then
+      if grep -qi 'javadb\|java db' /tmp/trivy.err; then
+        fail "could not download Trivy's Java DB from mirror.gcr.io, needed because $SCAN_IMAGE contains Java artifacts (the custom-steps agent cluster needs egress to it): $(tail -n 1 /tmp/trivy.err)"
+      fi
       fail "could not scan $SCAN_IMAGE: $(tail -n 3 /tmp/trivy.err)"
     fi
 

@@ -34,7 +34,7 @@ ARG ALPINE_VERSION=3.24.2
 
 FROM golang:${GO_VERSION}-alpine AS build
 ARG DYFF_VERSION
-RUN CGO_ENABLED=0 go install github.com/homeport/dyff/cmd/dyff@${DYFF_VERSION}
+RUN CGO_ENABLED=0 go install -trimpath -ldflags='-s -w' github.com/homeport/dyff/cmd/dyff@${DYFF_VERSION}
 
 FROM alpine:${ALPINE_VERSION}
 LABEL org.opencontainers.image.source=https://github.com/34fathombelow/kargo-custom-steps \

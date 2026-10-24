@@ -1,13 +1,11 @@
 # trivy
 
-[Trivy](https://trivy.dev) with its vulnerability DB **and** Java index DB pre-downloaded into `/opt/trivy-cache`, so the
-`trivy-image` step doesn't download them on every promotion. DB updates are disabled at runtime
-(`TRIVY_SKIP_DB_UPDATE`, `TRIVY_SKIP_JAVA_DB_UPDATE`).
+[Trivy](https://trivy.dev) plus `bash` and `jq`, running as UID 65532.
 
-The Java DB is required, not optional: with Java DB updates skipped and no Java DB present, Trivy aborts on any image
-that contains Java artifacts (`'--skip-java-db-update' cannot be specified on the first run`).
-
-The image is large (about 3.4 GB). The DBs go stale, so the image workflow rebuilds this image weekly.
+No vulnerability DB is baked in. Each scan downloads the current vulnerability DB (about 130 MiB) into
+`/tmp/trivy-cache`, and the Java DB (about 940 MiB) only when the scanned image contains Java artifacts (JAR, WAR, EAR).
+Both come from Trivy's default mirror, `mirror.gcr.io`. A promotion gate therefore always checks against today's CVEs, and the
+image stays small (about 60 MiB to pull). The cost is a download on every scan, since each promotion runs in a fresh pod.
 
 Used by: `trivy-image`.
 

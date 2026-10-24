@@ -138,12 +138,12 @@ Steps that need more:
 
 | Step | Needs |
 |---|---|
-| `trivy-image` | Egress to the image's registry (and credentials if it's private). The image carries Trivy's vulnerability and Java DBs, so it's about 3.4 GB; the first pull on a node is slow |
+| `trivy-image` | Egress to `mirror.gcr.io`: each scan downloads Trivy's current vulnerability DB (about 130 MiB), plus the Java DB (about 940 MiB) for images with Java. Also egress to the scanned image's registry (and credentials if it's private) |
 | `cosign-verify` | Egress to Sigstore (Fulcio, Rekor, the TUF root); images signed with cosign |
 | `opa-conftest` | Egress to `policyURL`, if you use remote policies |
 | `release-diff` | Egress to the git host when cloning by `repoURL` (or a `git-clone` earlier in the promotion) |
 | `argocd-drift-check` | Argo CD managing the target app, integrated with the `custom-steps` Kargo agent; Kargo capability `access-argocd`. Demo: Argo CD syncs two sample apps ([prereqs/argocd-drift-check](prereqs/argocd-drift-check)), which needs Argo CD clusters `in-cluster` and `custom-steps-agent` |
-| `flyway-migrate` | A database reachable from the agent cluster, and its credentials. Demo: Argo CD deploys a Postgres to cluster `custom-steps-agent` ([prereqs/flyway-migrate](prereqs/flyway-migrate)); you create the `flyway-db` secret in the Kargo UI ([secrets/README.md](secrets/README.md)) |
+| `flyway-migrate` | A database reachable from the agent cluster (PostgreSQL, MySQL/MariaDB, SQL Server, Oracle, SQLite, H2, HSQLDB or Firebird; [others need a driver added](docker/flyway/README.md#supported-databases)), and its credentials. Demo: Argo CD deploys a Postgres to cluster `custom-steps-agent` ([prereqs/flyway-migrate](prereqs/flyway-migrate)); you create the `flyway-db` secret in the Kargo UI ([secrets/README.md](secrets/README.md)) |
 | `jsonnet-render` | Egress to GitHub only with `jbInstall: true` |
 | `cluster-version` | An Argo CD agent in the **same namespace as the `custom-steps` Kargo agent's promotion controller** (it reads `argocd_cluster_info` from the `argocd-metrics` Service, port 8082). No capability or credentials |
 | `kyverno-apply`, `opa-promotion-gate`, `deprecated-apis`, `manifest-diff` | Nothing beyond the common prerequisites |
@@ -244,10 +244,12 @@ Demo project: `custom-steps-supply-chain` ([kargo/projects/supply-chain](kargo/p
 
 [Trivy](https://trivy.dev) scans the image for known vulnerabilities and blocks the promotion when it finds any at the
 severities you choose (`CRITICAL` by default, ignoring vulnerabilities that have no fix yet). The output counts them by
-severity, lists them with their fixed versions, and links the advisories in the Kargo UI. The vulnerability and Java
-DBs are baked into the step image, so a scan only pulls the image being scanned. The image is rebuilt weekly to keep the DBs fresh.
+severity, lists them with their fixed versions, and links the advisories in the Kargo UI. Each scan
+downloads Trivy's current vulnerability DB (and the Java DB only for images with Java artifacts), so the gate never
+works from a stale DB.
 
-**Prerequisites:** none beyond the common ones (registry credentials for private images).
+**Prerequisites:** egress from the agent cluster to `mirror.gcr.io` for the DBs (about 130 MiB per scan, plus about 940 MiB
+for images with Java), and registry credentials for private images.
 
 ```yaml
 apiVersion: ee.kargo.akuity.io/v1alpha1
@@ -481,7 +483,7 @@ The step runs `flyway repair` first (so one failed non-transactional migration c
 `rollback: true`. Re-runs are idempotent and Flyway's database lock serializes concurrent promotions. Config reaches Flyway only
 through environment variables, so passwords with quotes or backslashes work and never appear on a command line.
 
-**Prerequisites:** a database reachable from the `custom-steps` agent cluster, and its credentials. For the demo, Argo CD deploys a Postgres to cluster `custom-steps-agent` ([`prereqs/flyway-migrate`](prereqs/flyway-migrate)), and you create the `flyway-db` secret in the Kargo UI ([secrets/README.md](secrets/README.md)).
+**Prerequisites:** a database reachable from the `custom-steps` agent cluster (PostgreSQL, MySQL/MariaDB, SQL Server, Oracle, SQLite, H2, HSQLDB or Firebird; [others need a driver added](docker/flyway/README.md#supported-databases)), and its credentials. For the demo, Argo CD deploys a Postgres to cluster `custom-steps-agent` ([`prereqs/flyway-migrate`](prereqs/flyway-migrate)), and you create the `flyway-db` secret in the Kargo UI ([secrets/README.md](secrets/README.md)).
 
 ```yaml
 apiVersion: ee.kargo.akuity.io/v1alpha1

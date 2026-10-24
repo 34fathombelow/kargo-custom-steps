@@ -1,0 +1,12 @@
+description: without egress to the DB mirror, the step says the vulnerability DB could not be downloaded and why
+config:
+  image: mirror.gcr.io/library/alpine:3.24.2
+docker: ["--network", "none"]
+expect:
+  status: Failed
+  output:
+    blocked: true
+    scanned: false
+  messageContains:
+  - "could not download Trivy's vulnerability DB from mirror.gcr.io"
+  - "needs egress"
