@@ -707,16 +707,49 @@ Before adding one, check that Kargo doesn't already do it (see [Before you write
 
 ### Adding a step
 
-1. Check [Before you write a custom step](#before-you-write-a-custom-step) first.
-2. Add `kargo/custom-steps/<group>/<step>/<step>.yaml` and a `README.md` (copy
-   [kyverno-apply](kargo/custom-steps/policy/kyverno-apply/README.md)'s structure, including **Prerequisites**).
-3. Use an image from `docker/`, or add `docker/<tool>/Dockerfile` with `ARG <TOOL>_VERSION=<version>`.
-4. Add fixtures in `test/fixtures/<step>/`, at least one passing and one failing.
-   Run `make step-images` to add the README's generated "Image" section (the Dockerfile the step runs in).
-   Add the step to the `runs` map in `scripts/example-outputs.sh` (one passing and one failing fixture), then run
-   `scripts/example-outputs.sh <step>` to generate its "Example output" section. `make lint` fails until both exist.
-5. Add a PromotionTask and Stages to `kargo/projects/<group>/`.
-6. `make check`.
+Check [Before you write a custom step](#before-you-write-a-custom-step) first, then work through this list.
+`make lint` checks the items marked *(lint)*.
+
+**The step**
+- [ ] `kargo/custom-steps/<group>/<step>/<step>.yaml` *(lint)*. Its name must not clash with a built-in step *(lint)*.
+- [ ] A `README.md` next to it, following [kyverno-apply](kargo/custom-steps/policy/kyverno-apply/README.md)'s structure:
+  Prerequisites, Config, Outputs, Example, Try it, Notes. The step fails with a message naming any missing prerequisite.
+
+**The image** (skip if an existing image in `docker/` has what you need)
+- [ ] `docker/<tool>/Dockerfile`: `FROM` a pinned upstream image, `ARG <TOOL>_VERSION=<version>` with a `# renovate:` comment
+  above it, the `org.opencontainers.image.source` and `.description` labels, and `USER 65532:65532` (plus `HOME=/tmp` if
+  the tool writes to its home directory). The step's `image:` tag must match the `ARG` *(lint)*.
+- [ ] `docker/<tool>/README.md`: what the image adds and why.
+- [ ] `make images TOOL=<tool>` to build it locally. CI publishes it only after merge, so the demo can't run on a cluster
+  before then.
+
+**Tests** (see [Testing steps locally](#testing-steps-locally))
+- [ ] At least one passing and one failing fixture in `test/fixtures/<step>/` *(lint)*.
+- [ ] If the fixtures call a service (a database, an API), add it to `make test-services` and start it first.
+- [ ] `make test STEP=<step>` until it passes.
+
+**Generated docs**
+- [ ] `make step-images` adds the README's "Image" section *(lint)*.
+- [ ] Add the step to the `runs` map in `scripts/example-outputs.sh`, then run `scripts/example-outputs.sh <step>` to add
+  its "Example output" section *(lint)*.
+
+**Top-level README**
+- [ ] A section for the step under its group in [Examples](#examples).
+- [ ] A row in [Prerequisites](#prerequisites) → "Steps that need more", if it needs anything beyond the common ones.
+- [ ] Remove it from [More custom steps to build](#more-custom-steps-to-build) if it was listed there.
+
+**The demo** in `kargo/projects/<group>/`
+- [ ] A PromotionTask named `<step>.yaml`, and Stages named `<step>-<outcome>` with a `kargo.akuity.io/color` of green
+  (should pass) or red (should be blocked).
+- [ ] `spec.shard` and the `kargo.akuity.io/shard` label on every Stage and Warehouse *(lint)*.
+- [ ] A Warehouse subscription if the demo needs a new image or repository.
+- [ ] Workloads the demo needs go in `prereqs/<step>/` with an app in `argocd/apps/`. Secrets are documented in
+  [secrets/README.md](secrets/README.md) and created in the Kargo UI, never committed (a Secret under `kargo/` fails lint).
+- [ ] A new group also needs `project.yaml` (sync-wave `-1`) and a row in
+  [Choosing which demos to run](#choosing-which-demos-to-run).
+
+**Before opening a PR**
+- [ ] `make check` (lint, schema validation and every fixture). CI runs the same checks on the PR.
 
 ## Repository layout
 
