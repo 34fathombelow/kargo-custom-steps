@@ -1,0 +1,27 @@
+# <What the demo shows.> Clones this repository read-only and runs <step> on
+# demo-fixtures/<step>/<variant>, picked by the Stage's `variant` var.
+# File: kargo/projects/<group>/<step>.yaml
+apiVersion: kargo.akuity.io/v1alpha1
+kind: PromotionTask
+metadata:
+  name: <step>
+  namespace: custom-steps-<group>
+spec:
+  vars:
+  - name: repoURL
+    value: https://github.com/34fathombelow/kargo-custom-steps.git
+  # A var with an empty default is required by Kargo, and an empty Stage value
+  # doesn't count, so every var here has a non-empty default.
+  - name: variant
+    value: pass
+  steps:
+  - uses: git-clone
+    config:
+      repoURL: ${{ vars.repoURL }}
+      checkout:
+      - branch: main
+        path: ./src
+  - uses: <step>
+    as: <alias>
+    config:
+      path: ./src/demo-fixtures/<step>/${{ vars.variant }}

@@ -1,7 +1,6 @@
-# Working files (local planning and Claude context, not part of the catalogue)
-CLAUDE.md
-PLAN.md
-.claude/
+# Personal Claude Code files (CLAUDE.md and .claude/skills/ are shared)
+CLAUDE.local.md
+.claude/settings.local.json
 
 # Local step test runs
 .work/

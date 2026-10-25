@@ -1,0 +1,54 @@
+# Append to kargo/projects/<group>/stages.yaml, and add both Stages to the
+# comment block at the top of that file.
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: <step>-pass
+  namespace: custom-steps-<group>
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: green
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: <warehouse>
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: <step>
+        vars:
+        - name: variant
+          value: pass
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: <step>-blocked
+  namespace: custom-steps-<group>
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: red
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: <warehouse>
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: <step>
+        vars:
+        - name: variant
+          value: blocked

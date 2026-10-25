@@ -84,14 +84,47 @@ replace_line() { # replace_line <key> <from> <to> <files...>: only whole values 
   KEY="$key" FROM="$from" TO="$to" xargs perl -pi -e 's/\Q$ENV{KEY}$ENV{FROM}\E$/$ENV{KEY}$ENV{TO}/' <<<"$hits"
 }
 
+rewrite_prose() { # the cluster names and shard in docs, comments and step messages
+  [ "$cur_cluster" != "$cluster" ] || [ "$cur_agent" != "$agent" ] || [ "$cur_shard" != "$shard" ] || return 0
+  # Not test/ (fixture data) and not the generated README sections (real captured output).
+  local pats=() w='[^A-Za-z0-9_-]'
+  [ "$cur_cluster" = "$cluster" ] || pats+=(-e "(^|$w)${cur_cluster}(\$|$w)")
+  [ "$cur_agent" = "$agent" ] || pats+=(-e "(^|$w)${cur_agent}(\$|$w)")
+  [ "$cur_shard" = "$shard" ] || pats+=(-e "${cur_shard}(\`| +(shard|agent|Kargo))" -e "shard: ${cur_shard}(\$|$w)")
+  local hits; hits="$(printf '%s\n' "${files[@]}" | grep -vE '^test/' |
+    xargs grep -lE "${pats[@]}" 2>/dev/null || true)"
+  [ -n "$hits" ] || return 0
+  echo "  cluster and shard names in docs and comments: $(wc -l <<<"$hits" | tr -d ' ') file(s)"
+  $dry_run && return 0
+  # The shard name is also a prefix (namespaces custom-steps-<group>, repo kargo-custom-steps), so it
+  # is only rewritten in the forms the docs use: `name`, "name shard/agent/Kargo", "shard: name".
+  OC="$cur_cluster" NC="$cluster" OA="$cur_agent" NA="$agent" OS="$cur_shard" NS="$shard" \
+    xargs perl -0pi -e '
+      my ($oc, $nc, $oa, $na, $os, $ns) = @ENV{qw(OC NC OA NA OS NS)};
+      my @parts = split /(<!-- (?:example-output|step-image):start.*?<!-- (?:example-output|step-image):end -->)/s;
+      for my $i (grep { $_ % 2 == 0 } 0 .. $#parts) {
+        for ($parts[$i]) {
+          s/(?<![A-Za-z0-9_-])\Q$oc\E(?![A-Za-z0-9_-])/$nc/g if $oc ne $nc;
+          s/(?<![A-Za-z0-9_-])\Q$oa\E(?![A-Za-z0-9_-])/$na/g if $oa ne $na;
+          if ($os ne $ns) {
+            s/(?<![A-Za-z0-9_.\/-])\Q$os\E(?=`|\s+(?:shard|agent|Kargo)\b)/$ns/g;
+            s/(shard: )\Q$os\E(?![A-Za-z0-9_-])/$1$ns/g;
+          }
+        }
+      }
+      $_ = join "", @parts;' <<<"$hits"
+}
+
 echo "changes:"
 replace "github.com/${cur_repo}" "github.com/${repo}" "${files[@]}"
 replace "${cur_registry}" "${registry}" "${files[@]}"
-mapfile -t kargo_files < <(find kargo/projects -name '*.yaml')
+# The demo projects, and the new-custom-step skill's templates so new Stages land on the same shard.
+mapfile -t kargo_files < <(find kargo/projects .claude/skills -name '*.yaml' 2>/dev/null)
 replace_line "shard: " "$cur_shard" "$shard" "${kargo_files[@]}"
 replace_line "name: " "$cur_cluster" "$cluster" "$app"
 mapfile -t agent_files < <(grep -rlE "name: ${cur_agent}\$" argocd prereqs 2>/dev/null || true)
 [ ${#agent_files[@]} -eq 0 ] || replace_line "name: " "$cur_agent" "$agent" "${agent_files[@]}"
+rewrite_prose
 
 $dry_run && { echo "(dry run: nothing written)"; exit 0; }
 

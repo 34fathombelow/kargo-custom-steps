@@ -1,0 +1,69 @@
+# CustomPromotionStep: <step>
+#
+# <What the step checks or does, and when it blocks the promotion.>
+#
+# Config:
+#   path      - workdir-relative input, e.g. ./out from helm-template (required)
+#   password  - <secret, if the step needs one> (optional)
+#   <key>     - <meaning> (default <value>)
+#
+# Output (JSON): passed, <result keys>, error (only when the step fails before deciding)
+apiVersion: ee.kargo.akuity.io/v1alpha1
+kind: CustomPromotionStep
+metadata:
+  name: <step>
+spec:
+  # Must equal ARG <TOOL>_VERSION in docker/<tool>/Dockerfile (make lint checks it).
+  image: ghcr.io/34fathombelow/<tool>:<version>
+  defaultTimeout: 5m
+  defaultErrorThreshold: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+  env:
+  # Simple tokens (paths, names, versions, SHAs): quote().
+  - name: STEP_PATH
+    value: ${{ quote(config.path ?? "") }}
+  # Secrets and free-form text: asJSON() as the entire value, decoded below with jq -j.
+  - name: STEP_PASSWORD
+    value: ${{ asJSON(config.password ?? "") }}
+  command:
+  - bash
+  - -c
+  - |
+    set -euo pipefail
+    out=/tmp/<step>.json
+    STEP_PASSWORD="$(jq -j . <<<"$STEP_PASSWORD")"
+    # Every failure still writes output, so the promotion shows why it stopped.
+    fail() {
+      jq -n --arg e "$*" '{passed: false, error: $e}' > "$out"
+      echo "<step>: $*" >&2; exit 1
+    }
+    trap 'echo "<step>: unexpected error on line $LINENO" >&2' ERR
+
+    # Validate inputs first, with messages that name the fix.
+    [ -n "$STEP_PATH" ] || fail "config.path is required (<what it should point at>)"
+    [ -e "$STEP_PATH" ] || fail "path $STEP_PATH not found in the workdir (did an earlier step create it?)"
+
+    # Run the tool and decide from its machine-readable output, not only its exit code.
+    <tool> <args> --output json "$STEP_PATH" >/tmp/<tool>.json 2>/tmp/<tool>.err || true
+    jq -e . /tmp/<tool>.json >/dev/null 2>&1 || fail "<tool> produced no report: $(tail -n 3 /tmp/<tool>.err)"
+
+    # Shape the result. Cap long lists so the output stays under 256 KiB.
+    jq '{
+        passed: (<condition>),
+        findings: (<list>)[:100]
+      }' /tmp/<tool>.json > "$out"
+
+    if [ "$(jq -r .passed "$out")" != "true" ]; then
+      echo "Promotion blocked: <reason, with counts>" >&2
+      exit 1
+    fi
+    echo "<one-line summary of what passed>"
+  output:
+    source:
+      type: File
+      path: /tmp/<step>.json

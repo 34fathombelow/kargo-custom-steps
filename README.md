@@ -669,6 +669,10 @@ expect:
 Contributions are welcome: a new step, a fix, or a better demo. Pick an idea below or bring your own,
 then follow [Adding a step](#adding-a-step).
 
+Using [Claude Code](https://code.claude.com)? [CLAUDE.md](CLAUDE.md) gives it the repo's rules and the reasons behind
+them, and two skills walk it through the work: `new-custom-step` (the whole checklist below) and `test-custom-step`
+(fixtures, the local harness and troubleshooting), in [.claude/skills/](.claude/skills).
+
 ### More custom steps to build
 
 Ideas for custom steps that would fit here, by group. Contributions welcome: see [Adding a step](#adding-a-step).
@@ -780,6 +784,7 @@ test/fixtures/kyverno-apply/   # harness fixtures: at least one passing, one fai
 | [`scripts/`](scripts) | `fork.sh`, and the generators for the README sections (`example-outputs.sh`, `step-images.sh`) |
 | [`.github/workflows/`](.github/workflows) | CI: checks, image builds, releases ([what each does](.github/workflows/README.md)) |
 | [`docs/images/`](docs/images) | The logo |
+| [`CLAUDE.md`](CLAUDE.md), [`.claude/skills/`](.claude/skills) | Context and skills for Claude Code: the repo's rules, decisions, and how to build and test a step |
 | [`Makefile`](Makefile) | Every command above: `make help` lists them |
 
 ## Forking
@@ -795,7 +800,9 @@ scripts/fork.sh --dry-run                         # show what would change
 
 It rewrites every reference to the upstream repository and image registry: repository URLs in the demo projects and
 the Argo CD apps, image references in every step, the Makefile's `REGISTRY`, and the Go module path. Optionally
-it also changes the Kargo shard the demos use and the Argo CD cluster names of your Kargo control plane and agent cluster. You can re-run it.
+it also changes the Kargo shard the demos use and the Argo CD cluster names of your Kargo control plane and agent cluster,
+in the demo projects and Argo CD apps, the docs, step messages, and the templates the Claude Code skill uses for new
+steps. Generated example outputs and test data keep the original names. You can re-run it.
 
 Then build the images. Either push to GitHub and let the **Images** workflow publish every `docker/<tool>` image to your
 registry (Actions → Images → Run workflow → `all` to build them all by hand), or build and push from your machine with
