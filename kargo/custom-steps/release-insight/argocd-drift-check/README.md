@@ -173,8 +173,8 @@ creates the two demo Applications for you ([`prereqs/argocd-drift-check`](../../
 
 | Stage | Application | Expected |
 |---|---|---|
-| `drift-clean` | `drift-demo-clean` (automated sync) | Promotion succeeds: `drifted: false` |
-| `drift-detected` | `drift-demo-unsynced` (never synced) | Promotion blocked: the app is `OutOfSync` and its resources are listed |
+| `argocd-drift-check-pass` | `drift-demo-clean` (automated sync) | Promotion succeeds: `drifted: false` |
+| `argocd-drift-check-blocked` | `drift-demo-unsynced` (never synced) | Promotion blocked: the app is `OutOfSync` and its resources are listed |
 
 ## Notes
 

@@ -182,8 +182,8 @@ Demo project `custom-steps-supply-chain` ([kargo/projects/supply-chain](../../..
 
 | Stage | Image | Expected |
 |---|---|---|
-| `trivy-pass` | `alpine:3.24.2` | Promotion succeeds; output `blocked: false` |
-| `trivy-blocked` | `nginx:1.20.0` (2021) | Promotion fails: `Promotion blocked: N CRITICAL vulnerabilities in ...`, with the CVEs listed and linked |
+| `trivy-image-pass` | `alpine:3.24.2` | Promotion succeeds; output `blocked: false` |
+| `trivy-image-blocked` | `nginx:1.20.0` (2021) | Promotion fails: `Promotion blocked: N CRITICAL vulnerabilities in ...`, with the CVEs listed and linked |
 
 ## Notes
 

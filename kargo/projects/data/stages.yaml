@@ -1,18 +1,21 @@
 # Stages for the data demo. Both share one database (prereqs/flyway-migrate),
 # like an environment would across releases.
 #
-#   dev       (green)  promote the newest Freight: applies pending migrations,
-#                      output shows migrationsApplied and schemaVersion
-#   rollback  (yellow) after dev, promote the same Freight here. This Stage
-#                      applies the older migration set (migrations-v1, V1 only),
-#                      standing in for an older release: the database is ahead,
-#                      so the step succeeds as a no-op and reports
-#                      `rollback: true` (Flyway never migrates down). In real use
-#                      the same happens when you promote older Freight.
+#   flyway-migrate-apply     (green)  promote the newest Freight: applies pending
+#                                     migrations; the output shows
+#                                     migrationsApplied and schemaVersion
+#   flyway-migrate-rollback  (yellow) after flyway-migrate-apply, promote the same
+#                                     Freight here. This Stage applies the older
+#                                     migration set (migrations-v1, V1 only),
+#                                     standing in for an older release: the
+#                                     database is ahead, so the step succeeds as a
+#                                     no-op and reports `rollback: true` (Flyway
+#                                     never migrates down). In real use the same
+#                                     happens when you promote older Freight.
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
 metadata:
-  name: dev
+  name: flyway-migrate-apply
   namespace: custom-steps-data
   labels:
     kargo.akuity.io/shard: custom-steps
@@ -35,7 +38,7 @@ spec:
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
 metadata:
-  name: rollback
+  name: flyway-migrate-rollback
   namespace: custom-steps-data
   labels:
     kargo.akuity.io/shard: custom-steps

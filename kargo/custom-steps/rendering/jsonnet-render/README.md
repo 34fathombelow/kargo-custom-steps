@@ -139,7 +139,7 @@ Demo project `custom-steps-rendering` ([kargo/projects/rendering](../../../proje
 
 | Stage | Expected |
 |---|---|
-| `jsonnet` | Promotion succeeds. The `render` output lists `deployment-guestbook.yaml` and `service-guestbook.yaml`, and the following built-in `yaml-parse` step (`rendered`) reads the Freight's image tag and `replicas: 2` back out of the rendered Deployment |
+| `jsonnet-render-pass` | Promotion succeeds. The `render` output lists `deployment-guestbook.yaml` and `service-guestbook.yaml`, and the following built-in `yaml-parse` step (`rendered`) reads the Freight's image tag and `replicas: 2` back out of the rendered Deployment |
 
 ## Notes
 

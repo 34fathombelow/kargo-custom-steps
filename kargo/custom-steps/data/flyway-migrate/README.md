@@ -186,8 +186,8 @@ Kargo UI first ([`secrets/README.md`](../../../../secrets/README.md#flyway-db-th
 
 | Stage | Do | Expected |
 |---|---|---|
-| `dev` | Promote the newest Freight | Succeeds; `migrationsApplied: 3`, `schemaVersion: "3"`. Promote again: `migrationsApplied: 0` |
-| `rollback` | After `dev`, promote the same Freight here. This Stage applies the older migration set (`migrations-v1`, V1 only), standing in for an older release | Succeeds as a no-op; `rollback: true`, `futureVersions: ["2", "3"]` |
+| `flyway-migrate-apply` | Promote the newest Freight | Succeeds; `migrationsApplied: 3`, `schemaVersion: "3"`. Promote again: `migrationsApplied: 0` |
+| `flyway-migrate-rollback` | After `flyway-migrate-apply`, promote the same Freight here. This Stage applies the older migration set (`migrations-v1`, V1 only), standing in for an older release | Succeeds as a no-op; `rollback: true`, `futureVersions: ["2", "3"]` |
 
 In real use, the rollback case happens when you promote older Freight whose migrations the database has already moved past.
 

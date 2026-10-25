@@ -155,8 +155,8 @@ Demo project `custom-steps-policy` ([kargo/projects/policy](../../../projects/po
 
 | Stage | Manifests | Expected |
 |---|---|---|
-| `kyverno-pass` | [`demo-fixtures/policy/compliant`](../../../../demo-fixtures/policy/compliant) | Succeeds: `summary: {pass: 3, fail: 0, ...}` |
-| `kyverno-blocked` | [`demo-fixtures/policy/violating`](../../../../demo-fixtures/policy/violating) | Fails: `disallow-latest-tag/disallow-latest` and `require-resource-limits` violations |
+| `kyverno-apply-pass` | [`demo-fixtures/policy/compliant`](../../../../demo-fixtures/policy/compliant) | Succeeds: `summary: {pass: 3, fail: 0, ...}` |
+| `kyverno-apply-blocked` | [`demo-fixtures/policy/violating`](../../../../demo-fixtures/policy/violating) | Fails: `disallow-latest-tag/disallow-latest` and `require-resource-limits` violations |
 
 ## Notes
 

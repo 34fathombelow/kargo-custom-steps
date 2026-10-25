@@ -1,15 +1,15 @@
 # Stages for the policy demo. Names say what to expect:
 #   green = promotion should succeed, red = promotion should be blocked.
 #
-# kyverno-apply (custom step)       kyverno-pass / kyverno-blocked
-# opa-conftest (custom step)        conftest-pass / conftest-blocked
-# opa-promotion-gate (custom step)  promotion-allowed (environment dev)
-#                                   promotion-denied (environment prod, no change
-#                                   ticket, actor not a release manager)
+# kyverno-apply (custom step)       kyverno-apply-pass / kyverno-apply-blocked
+# opa-conftest (custom step)        opa-conftest-pass / opa-conftest-blocked
+# opa-promotion-gate (custom step)  opa-promotion-gate-allowed (environment dev)
+#                                   opa-promotion-gate-denied (environment prod,
+#                                   no change ticket, actor not a release manager)
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
 metadata:
-  name: kyverno-pass
+  name: kyverno-apply-pass
   namespace: custom-steps-policy
   labels:
     kargo.akuity.io/shard: custom-steps
@@ -35,7 +35,7 @@ spec:
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
 metadata:
-  name: kyverno-blocked
+  name: kyverno-apply-blocked
   namespace: custom-steps-policy
   labels:
     kargo.akuity.io/shard: custom-steps
@@ -61,7 +61,7 @@ spec:
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
 metadata:
-  name: conftest-pass
+  name: opa-conftest-pass
   namespace: custom-steps-policy
   labels:
     kargo.akuity.io/shard: custom-steps
@@ -87,7 +87,7 @@ spec:
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
 metadata:
-  name: conftest-blocked
+  name: opa-conftest-blocked
   namespace: custom-steps-policy
   labels:
     kargo.akuity.io/shard: custom-steps
@@ -113,7 +113,7 @@ spec:
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
 metadata:
-  name: promotion-allowed
+  name: opa-promotion-gate-allowed
   namespace: custom-steps-policy
   labels:
     kargo.akuity.io/shard: custom-steps
@@ -139,7 +139,7 @@ spec:
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
 metadata:
-  name: promotion-denied
+  name: opa-promotion-gate-denied
   namespace: custom-steps-policy
   labels:
     kargo.akuity.io/shard: custom-steps

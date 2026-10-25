@@ -158,8 +158,8 @@ Demo project `custom-steps-supply-chain` ([kargo/projects/supply-chain](../../..
 
 | Stage | Image | Expected |
 |---|---|---|
-| `cosign-verified` | `ghcr.io/sigstore/cosign/cosign:v3.1.3`, signed by `keyless@projectsigstore.iam.gserviceaccount.com` (issuer `https://accounts.google.com`) | Promotion succeeds; output lists the signer and links to the Rekor entries |
-| `cosign-unsigned` | `quay.io/prometheus/node-exporter:v1.9.1`, not signed with cosign | Promotion fails: `failed signature verification: no signatures found` |
+| `cosign-verify-pass` | `ghcr.io/sigstore/cosign/cosign:v3.1.3`, signed by `keyless@projectsigstore.iam.gserviceaccount.com` (issuer `https://accounts.google.com`) | Promotion succeeds; output lists the signer and links to the Rekor entries |
+| `cosign-verify-blocked` | `quay.io/prometheus/node-exporter:v1.9.1`, not signed with cosign | Promotion fails: `failed signature verification: no signatures found` |
 
 ## Notes
 

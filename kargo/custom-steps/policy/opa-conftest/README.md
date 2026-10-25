@@ -162,8 +162,8 @@ Demo project `custom-steps-policy` ([kargo/projects/policy](../../../projects/po
 
 | Stage | Manifests | Expected |
 |---|---|---|
-| `conftest-pass` | [`demo-fixtures/policy/compliant`](../../../../demo-fixtures/policy/compliant) | Succeeds: no failures, no warnings |
-| `conftest-blocked` | [`demo-fixtures/policy/violating`](../../../../demo-fixtures/policy/violating) | Fails: privileged, root and missing-memory-limit failures, plus a `runAsNonRoot` warning |
+| `opa-conftest-pass` | [`demo-fixtures/policy/compliant`](../../../../demo-fixtures/policy/compliant) | Succeeds: no failures, no warnings |
+| `opa-conftest-blocked` | [`demo-fixtures/policy/violating`](../../../../demo-fixtures/policy/violating) | Fails: privileged, root and missing-memory-limit failures, plus a `runAsNonRoot` warning |
 
 ## Notes
 

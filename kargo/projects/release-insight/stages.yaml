@@ -1,15 +1,18 @@
 # Stages for the release-insight demo. green = should succeed, red = should be blocked.
 #
-# manifest-diff        renders the chart for the current and the new image tag and shows the diff
-# release-dev          git log between the commit dev last ran and the promoted commit
-#   -> release-staging the same for staging, fed from release-dev (Freight carries over)
-# drift-clean          Argo CD app that is Synced + Healthy          -> passes
-# drift-detected       Argo CD app that was never synced (OutOfSync) -> blocked
-#                      (both need prereqs/argocd-drift-check)
+# manifest-diff-changes       renders the chart for the current and the new image
+#                             tag and shows the diff
+# release-diff-dev            git log between the commit dev last ran and the
+#                             promoted commit
+#   -> release-diff-staging   the same for staging, fed from release-diff-dev
+#                             (Freight carries over)
+# argocd-drift-check-pass     Argo CD app that is Synced + Healthy          -> passes
+# argocd-drift-check-blocked  Argo CD app that was never synced (OutOfSync) -> blocked
+#                             (both need prereqs/argocd-drift-check)
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
 metadata:
-  name: manifest-diff
+  name: manifest-diff-changes
   namespace: custom-steps-release-insight
   labels:
     kargo.akuity.io/shard: custom-steps
@@ -32,7 +35,7 @@ spec:
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
 metadata:
-  name: release-dev
+  name: release-diff-dev
   namespace: custom-steps-release-insight
   labels:
     kargo.akuity.io/shard: custom-steps
@@ -55,7 +58,7 @@ spec:
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
 metadata:
-  name: release-staging
+  name: release-diff-staging
   namespace: custom-steps-release-insight
   labels:
     kargo.akuity.io/shard: custom-steps
@@ -69,7 +72,7 @@ spec:
       name: guestbook-source
     sources:
       stages:
-      - release-dev
+      - release-diff-dev
   promotionTemplate:
     spec:
       steps:
@@ -79,7 +82,7 @@ spec:
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
 metadata:
-  name: drift-clean
+  name: argocd-drift-check-pass
   namespace: custom-steps-release-insight
   labels:
     kargo.akuity.io/shard: custom-steps
@@ -105,7 +108,7 @@ spec:
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
 metadata:
-  name: drift-detected
+  name: argocd-drift-check-blocked
   namespace: custom-steps-release-insight
   labels:
     kargo.akuity.io/shard: custom-steps

@@ -176,8 +176,8 @@ Demo project `custom-steps-policy` ([kargo/projects/policy](../../../projects/po
 
 | Stage | Input | Expected |
 |---|---|---|
-| `promotion-allowed` | `environment: dev` | Succeeds: `allowed: true` |
-| `promotion-denied` | `environment: prod`, no change ticket | Fails, listing every reason: you are not in `release_managers`, no change ticket (and, on Friday afternoons, the Friday rule) |
+| `opa-promotion-gate-allowed` | `environment: dev` | Succeeds: `allowed: true` |
+| `opa-promotion-gate-denied` | `environment: prod`, no change ticket | Fails, listing every reason: you are not in `release_managers`, no change ticket (and, on Friday afternoons, the Friday rule) |
 
 Rollbacks are always allowed by the demo policy: the `rollback-allowed` fixture shows it.
 

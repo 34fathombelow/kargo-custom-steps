@@ -113,23 +113,12 @@ Every step and demo needs:
   * For `argocd-drift-check`, this must be the Argo CD integrated with the `custom-steps` Kargo agent: the step reads
     Applications through that integration.
 * Network egress from the agent cluster to `ghcr.io` (step images) and `github.com` (the demos clone this repository).
+  Some steps reach more hosts, such as `mirror.gcr.io` for Trivy's vulnerability DBs and Sigstore for cosign.
 
-Steps that need more:
-
-| Step | Needs |
-|---|---|
-| `trivy-image` | Egress to `mirror.gcr.io`: each scan downloads Trivy's current vulnerability DB (about 130 MiB), plus the Java DB (about 940 MiB) for images with Java. Also egress to the scanned image's registry (and credentials if it's private) |
-| `cosign-verify` | Egress to Sigstore (Fulcio, Rekor, the TUF root); images signed with cosign |
-| `opa-conftest` | Egress to `policyURL`, if you use remote policies |
-| `release-diff` | Egress to the git host when cloning by `repoURL` (or a `git-clone` earlier in the promotion) |
-| `argocd-drift-check` | Argo CD managing the target app, integrated with the `custom-steps` Kargo agent; Kargo capability `access-argocd`. Demo: Argo CD syncs two sample apps ([prereqs/argocd-drift-check](prereqs/argocd-drift-check)), which needs Argo CD clusters `in-cluster` and `custom-steps-agent` |
-| `flyway-migrate` | A database reachable from the agent cluster (PostgreSQL, MySQL/MariaDB, SQL Server, Oracle, SQLite, H2, HSQLDB or Firebird; [others need a driver added](docker/flyway/README.md#supported-databases)), and its credentials. Demo: Argo CD deploys a Postgres to cluster `custom-steps-agent` ([prereqs/flyway-migrate](prereqs/flyway-migrate)); you create the `flyway-db` secret in the Kargo UI ([secrets/README.md](secrets/README.md)) |
-| `jsonnet-render` | Egress to GitHub only with `jbInstall: true` |
-| `cluster-version` | An Argo CD agent in the **same namespace as the `custom-steps` Kargo agent's promotion controller** (it reads `argocd_cluster_info` from the `argocd-metrics` Service, port 8082). No capability or credentials |
-| `kyverno-apply`, `opa-promotion-gate`, `deprecated-apis`, `manifest-diff` | Nothing beyond the common prerequisites |
-
-Each step's README has the full list: cluster add-ons and which cluster, reachable services, accounts, Kargo
-capabilities, egress, and inputs from earlier steps.
+Some steps need more: a database, an Argo CD integration, or egress to other hosts. Each step's README lists its own
+under **Prerequisites** (cluster add-ons and which cluster, reachable services, accounts, Kargo capabilities, egress,
+and inputs from earlier steps), and [Choosing which demos to run](#choosing-which-demos-to-run) lists the extra setup
+each demo needs.
 
 ## Running the demos
 
@@ -155,7 +144,9 @@ which prerequisites deploy), **fork it first**: Argo CD syncs from git, so chang
 3. **Create the one secret the `data` demo needs** in the Kargo UI: `flyway-db` ([secrets/README.md](secrets/README.md)).
 4. **Promote in the Kargo UI.** Open a `custom-steps-<group>` project and promote the newest Freight into each Stage.
    Green Stages should succeed and red ones should be blocked (yellow marks the `data` demo's rollback case, which
-   succeeds as a no-op). Each step's output is shown on the promotion.
+   succeeds as a no-op). Each step's output is shown on the promotion. Two demos run in order:
+   promote `flyway-migrate-apply` before `flyway-migrate-rollback`, and `release-diff-dev` before
+   `release-diff-staging` (which takes its Freight from `release-diff-dev`).
 
 ### Choosing which demos to run
 
@@ -509,7 +500,7 @@ Full reference: [argocd-drift-check](kargo/custom-steps/release-insight/argocd-d
 ### Data
 
 Move the database with the release: schema changes are part of the Freight, applied during promotion, and safe to
-retry and roll back.
+retry and roll back. Demo project: `custom-steps-data` ([kargo/projects/data](kargo/projects/data)).
 
 #### flyway-migrate
 
@@ -550,7 +541,7 @@ spec:
 ```
 
 Full definition, config and outputs: [kargo/custom-steps/data/flyway-migrate](kargo/custom-steps/data/flyway-migrate).
-Demo: project `custom-steps-data`, Stages `dev` (applies migrations) and `rollback` (promote older Freight → no-op).
+Demo Stages: `flyway-migrate-apply` (applies migrations) and `flyway-migrate-rollback` (promote older Freight → no-op).
 
 
 ### Rendering
@@ -646,10 +637,14 @@ reproduce exactly), runs the image as UID 65532 with all capabilities dropped, a
 
 ```sh
 make images                       # build the step images locally
+make test-services                # start the services some fixtures call (a throwaway Postgres
+                                  # for flyway-migrate, a fake Argo CD metrics endpoint for cluster-version)
 make test STEP=deprecated-apis    # run one step's fixtures (test/fixtures/<step>/*.yaml)
 make test V=1                     # all steps, verbose
 make lint                         # repository conventions
 make validate                     # Kargo CRD schemas (offline)
+make check                        # lint + validate + test, what CI runs
+make test-services-down           # remove the test services
 ```
 
 A fixture is the step's `config` and `ctx`, the files to place in the working directory, and the expected status and
@@ -720,7 +715,7 @@ kargo/
 └── projects/policy/           # the group's demo project
     ├── project.yaml
     ├── warehouse.yaml
-    ├── stages.yaml            # kyverno-pass, kyverno-blocked, ...
+    ├── stages.yaml            # kyverno-apply-pass, kyverno-apply-blocked, ...
     └── kyverno-apply.yaml     # the step's PromotionTask
 docker/kyverno/                # the step's image
 ├── Dockerfile
@@ -753,7 +748,8 @@ test/fixtures/kyverno-apply/   # harness fixtures: at least one passing, one fai
 
 **Top-level README**
 - [ ] A section for the step under its group in [Examples](#examples).
-- [ ] A row in [Prerequisites](#prerequisites) → "Steps that need more", if it needs anything beyond the common ones.
+- [ ] A one-line **Prerequisites:** summary in that section, and any extra demo setup in
+  [Choosing which demos to run](#choosing-which-demos-to-run).
 - [ ] Remove it from [More custom steps to build](#more-custom-steps-to-build) if it was listed there.
 
 **The demo** in `kargo/projects/<group>/`

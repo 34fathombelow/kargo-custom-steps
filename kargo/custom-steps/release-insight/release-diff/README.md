@@ -152,8 +152,8 @@ Demo project `custom-steps-release-insight` ([kargo/projects/release-insight](..
 
 | Stage | Freight | Expected |
 |---|---|---|
-| `release-dev` | Commits from `guestbook-source` (akuity/guestbook `main`) | First promotion: `firstRelease: true` and the latest commits. Later promotions: the commits since the last one |
-| `release-staging` | Freight that passed `release-dev` | The same diff, computed from staging's own last commit |
+| `release-diff-dev` | Commits from `guestbook-source` (akuity/guestbook `main`) | First promotion: `firstRelease: true` and the latest commits. Later promotions: the commits since the last one |
+| `release-diff-staging` | Freight that passed `release-diff-dev` | The same diff, computed from staging's own last commit |
 
 To see a rollback, create Freight from an older discovered commit in the `guestbook-source` Warehouse and promote it:
 the output shows `rollback: true` and the commits being reverted.

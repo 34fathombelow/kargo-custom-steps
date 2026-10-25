@@ -157,7 +157,7 @@ Demo project `custom-steps-release-insight` ([kargo/projects/release-insight](..
 
 | Stage | What it does | Expected |
 |---|---|---|
-| `manifest-diff` | Renders [`demo-fixtures/manifest-diff/chart`](../../../../demo-fixtures/manifest-diff/chart) with its default image tag (`v0.0.1`), and again with the promoted tag, then diffs them | Succeeds. Promoting `v0.0.2` shows `changed: true` and the `image` change; promoting `v0.0.1` shows `changed: false` |
+| `manifest-diff-changes` | Renders [`demo-fixtures/manifest-diff/chart`](../../../../demo-fixtures/manifest-diff/chart) with its default image tag (`v0.0.1`), and again with the promoted tag, then diffs them | Succeeds. Promoting `v0.0.2` shows `changed: true` and the `image` change; promoting `v0.0.1` shows `changed: false` |
 
 ## Notes
 
