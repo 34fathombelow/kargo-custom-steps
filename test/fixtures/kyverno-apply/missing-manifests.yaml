@@ -1,9 +1,9 @@
 description: a path that no earlier step produced names the missing prerequisite
 config:
   path: out
-  policyPath: src/policy/kyverno
+  policyPath: src/demo-fixtures/policies/kyverno
 files:
-  src/policy/kyverno: policy/kyverno
+  src/demo-fixtures/policies/kyverno: demo-fixtures/policies/kyverno
 expect:
   status: Failed
   messageContains:

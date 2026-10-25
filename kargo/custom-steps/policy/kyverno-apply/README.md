@@ -119,18 +119,18 @@ the same output in the Kargo UI. Long lists and strings are trimmed here.
   },
   "violations": [
     {
-      "message": "validation error: Every container needs resources.requests.cpu, resources.requests.memory and resources.limits.memory. rule require-requests-and-memory-limit failed at path /spec/template/spec/containers/0/resources/",
-      "policy": "require-resource-limits",
-      "resource": "Deployment/default/guestbook",
-      "result": "fail",
-      "rule": "require-requests-and-memory-limit"
-    },
-    {
       "message": "validation error: The ':latest' tag is not allowed; pin a version. rule disallow-latest failed at path /spec/template/spec/containers/0/image/",
       "policy": "disallow-latest-tag",
       "resource": "Deployment/default/guestbook",
       "result": "fail",
       "rule": "disallow-latest"
+    },
+    {
+      "message": "validation error: Every container needs resources.requests.cpu, resources.requests.memory and resources.limits.memory. rule require-requests-and-memory-limit failed at path /spec/template/spec/containers/0/resources/",
+      "policy": "require-resource-limits",
+      "resource": "Deployment/default/guestbook",
+      "result": "fail",
+      "rule": "require-requests-and-memory-limit"
     }
   ]
 }
@@ -140,8 +140,8 @@ The promotion stops with this message:
 
 ```text
 Step failed (stdout: Kyverno: 1 pass, 2 fail, 0 warn, 0 error, 0 skip
-  [fail] require-resource-limits/require-requests-and-memory-limit Deployment/default/guestbook: validation error: Every container needs resources.requests.cpu, resources.requests.memory and resources.limits.memory. rule require-requests-and-memory-limit failed at path /spec/template/spec/containers/0/resources/
   [fail] disallow-latest-tag/disallow-latest Deployment/default/guestbook: validation error: The ':latest' tag is not allowed; pin a version. rule disallow-latest failed at path /spec/template/spec/containers/0/image/
+  [fail] require-resource-limits/require-requests-and-memory-limit Deployment/default/guestbook: validation error: Every container needs resources.requests.cpu, resources.requests.memory and resources.limits.memory. rule require-requests-and-memory-limit failed at path /spec/template/spec/containers/0/resources/
 ) (stderr: Promotion blocked by Kyverno policy violations (failOn: fail).
 )
 
@@ -151,7 +151,7 @@ Step failed (stdout: Kyverno: 1 pass, 2 fail, 0 warn, 0 error, 0 skip
 ## Try it
 
 Demo project `custom-steps-policy` ([kargo/projects/policy](../../../projects/policy)) with the policies in
-[`policy/kyverno`](../../../../policy/kyverno):
+[`demo-fixtures/policies/kyverno`](../../../../demo-fixtures/policies/kyverno):
 
 | Stage | Manifests | Expected |
 |---|---|---|

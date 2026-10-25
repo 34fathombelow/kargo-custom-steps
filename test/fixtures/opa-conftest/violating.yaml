@@ -1,10 +1,10 @@
 description: privileged, root and limit-less containers are blocked; warnings are reported too
 config:
   path: src/demo-fixtures/policy/violating
-  policyPath: src/policy/opa/conftest
+  policyPath: src/demo-fixtures/policies/opa/conftest
 files:
   src/demo-fixtures/policy: demo-fixtures/policy
-  src/policy/opa/conftest: policy/opa/conftest
+  src/demo-fixtures/policies/opa/conftest: demo-fixtures/policies/opa/conftest
 expect:
   status: Failed
   output:

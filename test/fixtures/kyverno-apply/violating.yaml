@@ -1,10 +1,10 @@
 description: a Deployment with :latest and no limits is blocked, with each violation reported
 config:
   path: src/demo-fixtures/policy/violating
-  policyPath: src/policy/kyverno
+  policyPath: src/demo-fixtures/policies/kyverno
 files:
   src/demo-fixtures/policy: demo-fixtures/policy
-  src/policy/kyverno: policy/kyverno
+  src/demo-fixtures/policies/kyverno: demo-fixtures/policies/kyverno
 expect:
   status: Failed
   output:

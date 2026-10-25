@@ -1,4 +1,4 @@
-# Passes every policy in policy/kyverno and policy/opa/conftest.
+# Passes every policy in demo-fixtures/policies/kyverno and demo-fixtures/policies/opa/conftest.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

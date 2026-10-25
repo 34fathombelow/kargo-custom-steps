@@ -1,10 +1,10 @@
 description: compliant manifests pass every policy
 config:
   path: src/demo-fixtures/policy/compliant
-  policyPath: src/policy/kyverno
+  policyPath: src/demo-fixtures/policies/kyverno
 files:
   src/demo-fixtures/policy: demo-fixtures/policy
-  src/policy/kyverno: policy/kyverno
+  src/demo-fixtures/policies/kyverno: demo-fixtures/policies/kyverno
 expect:
   status: Succeeded
   output:

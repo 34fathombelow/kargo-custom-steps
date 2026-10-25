@@ -1,11 +1,11 @@
 description: with failOnWarn, a warning alone blocks (one replica triggers the replicas warning)
 config:
   path: src/manifests
-  policyPath: src/policy/opa/conftest
+  policyPath: src/demo-fixtures/policies/opa/conftest
   failOnWarn: true
 files:
   src/manifests/deployment.yaml: test/fixtures/opa-conftest/inputs/one-replica.yaml
-  src/policy/opa/conftest: policy/opa/conftest
+  src/demo-fixtures/policies/opa/conftest: demo-fixtures/policies/opa/conftest
 expect:
   status: Failed
   output:

@@ -1,10 +1,10 @@
 description: compliant manifests pass; no failures or warnings
 config:
   path: src/demo-fixtures/policy/compliant
-  policyPath: src/policy/opa/conftest
+  policyPath: src/demo-fixtures/policies/opa/conftest
 files:
   src/demo-fixtures/policy: demo-fixtures/policy
-  src/policy/opa/conftest: policy/opa/conftest
+  src/demo-fixtures/policies/opa/conftest: demo-fixtures/policies/opa/conftest
 expect:
   status: Succeeded
   output:

@@ -158,7 +158,7 @@ Step failed (stdout: conftest: 2 file(s), 6 passed, 3 failure(s), 1 warning(s)
 ## Try it
 
 Demo project `custom-steps-policy` ([kargo/projects/policy](../../../projects/policy)) with the policies in
-[`policy/opa/conftest`](../../../../policy/opa/conftest):
+[`demo-fixtures/policies/opa/conftest`](../../../../demo-fixtures/policies/opa/conftest):
 
 | Stage | Manifests | Expected |
 |---|---|---|

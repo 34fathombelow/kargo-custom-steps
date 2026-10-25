@@ -1,6 +1,6 @@
 description: prod by a non-release-manager, Friday afternoon, without a change ticket, is denied with every reason
 config:
-  policyPath: src/policy/opa/promotion
+  policyPath: src/demo-fixtures/policies/opa/promotion
   now: "2026-11-13T16:00:00Z"
 ctx:
   stage: prod-us
@@ -8,7 +8,7 @@ ctx:
     promotion:
       actor: alice@example.com
 files:
-  src/policy/opa/promotion: policy/opa/promotion
+  src/demo-fixtures/policies/opa/promotion: demo-fixtures/policies/opa/promotion
 expect:
   status: Failed
   output:

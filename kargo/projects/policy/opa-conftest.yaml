@@ -1,4 +1,4 @@
-# Tests manifests against the Rego policies in policy/opa/conftest.
+# Tests manifests against the Rego policies in demo-fixtures/policies/opa/conftest.
 # vars.manifests picks demo-fixtures/policy/<compliant|violating>.
 apiVersion: kargo.akuity.io/v1alpha1
 kind: PromotionTask
@@ -22,4 +22,4 @@ spec:
     as: conftest
     config:
       path: ./src/demo-fixtures/policy/${{ vars.manifests }}
-      policyPath: ./src/policy/opa/conftest
+      policyPath: ./src/demo-fixtures/policies/opa/conftest

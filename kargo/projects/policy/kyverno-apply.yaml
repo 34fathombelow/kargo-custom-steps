@@ -1,4 +1,4 @@
-# Checks manifests against the Kyverno policies in policy/kyverno.
+# Checks manifests against the Kyverno policies in demo-fixtures/policies/kyverno.
 # vars.manifests picks demo-fixtures/policy/<compliant|violating> so the demo
 # shows both outcomes; in real use, point path at the output of helm-template
 # or kustomize-build.
@@ -24,4 +24,4 @@ spec:
     as: kyverno
     config:
       path: ./src/demo-fixtures/policy/${{ vars.manifests }}
-      policyPath: ./src/policy/kyverno
+      policyPath: ./src/demo-fixtures/policies/kyverno

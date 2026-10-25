@@ -1,6 +1,6 @@
 description: config.input cannot override the promotion context (actor stays the real one)
 config:
-  policyPath: src/policy/opa/promotion
+  policyPath: src/demo-fixtures/policies/opa/promotion
   now: "2026-11-10T10:00:00Z"
   input:
     actor: release-manager@example.com
@@ -11,7 +11,7 @@ ctx:
     promotion:
       actor: mallory@example.com
 files:
-  src/policy/opa/promotion: policy/opa/promotion
+  src/demo-fixtures/policies/opa/promotion: demo-fixtures/policies/opa/promotion
 expect:
   status: Failed
   output:

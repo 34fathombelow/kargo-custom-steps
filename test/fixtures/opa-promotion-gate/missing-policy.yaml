@@ -1,6 +1,6 @@
 description: a policy that was not checked out names the missing prerequisite
 config:
-  policyPath: src/policy/opa/promotion
+  policyPath: src/demo-fixtures/policies/opa/promotion
 expect:
   status: Failed
   messageContains:

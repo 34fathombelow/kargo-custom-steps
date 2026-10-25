@@ -1,4 +1,4 @@
-# Applies policy/opa/promotion/promotion.rego to the promotion itself.
+# Applies demo-fixtures/policies/opa/promotion/promotion.rego to the promotion itself.
 # The policy treats environment "prod" as production: only release managers
 # may promote, never on Friday afternoons, and only with a change ticket.
 apiVersion: kargo.akuity.io/v1alpha1
@@ -26,7 +26,7 @@ spec:
   - uses: opa-promotion-gate
     as: policy
     config:
-      policyPath: ./src/policy/opa/promotion
+      policyPath: ./src/demo-fixtures/policies/opa/promotion
       input:
         environment: ${{ vars.environment }}
         # `none` becomes "" (no ticket). quote(): a numeric ticket like 12345

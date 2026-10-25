@@ -1,6 +1,6 @@
 description: a release manager with a change ticket on a Tuesday may promote to prod
 config:
-  policyPath: src/policy/opa/promotion
+  policyPath: src/demo-fixtures/policies/opa/promotion
   now: "2026-11-10T10:00:00Z"
   input:
     environment: prod
@@ -11,7 +11,7 @@ ctx:
     promotion:
       actor: release-manager@example.com
 files:
-  src/policy/opa/promotion: policy/opa/promotion
+  src/demo-fixtures/policies/opa/promotion: demo-fixtures/policies/opa/promotion
 expect:
   status: Succeeded
   output:

@@ -269,7 +269,7 @@ reason shows up on the failed promotion.
 ```
 
 Full reference: [kargo/custom-steps/policy/opa-promotion-gate](kargo/custom-steps/policy/opa-promotion-gate/README.md).
-Example policy: [policy/opa/promotion/promotion.rego](policy/opa/promotion/promotion.rego).
+Example policy: [demo-fixtures/policies/opa/promotion/promotion.rego](demo-fixtures/policies/opa/promotion/promotion.rego).
 
 ### Supply chain
 
@@ -710,6 +710,24 @@ Before adding one, check that Kargo doesn't already do it (see [Before you write
 Check [Before you write a custom step](#before-you-write-a-custom-step) first, then work through this list.
 `make lint` checks the items marked *(lint)*.
 
+Where one step's files live, using `kyverno-apply` in the `policy` group:
+
+```text
+kargo/
+├── custom-steps/policy/kyverno-apply/
+│   ├── kyverno-apply.yaml     # the CustomPromotionStep
+│   └── README.md
+└── projects/policy/           # the group's demo project
+    ├── project.yaml
+    ├── warehouse.yaml
+    ├── stages.yaml            # kyverno-pass, kyverno-blocked, ...
+    └── kyverno-apply.yaml     # the step's PromotionTask
+docker/kyverno/                # the step's image
+├── Dockerfile
+└── README.md
+test/fixtures/kyverno-apply/   # harness fixtures: at least one passing, one failing
+```
+
 **The step**
 - [ ] `kargo/custom-steps/<group>/<step>/<step>.yaml` *(lint)*. Its name must not clash with a built-in step *(lint)*.
 - [ ] A `README.md` next to it, following [kyverno-apply](kargo/custom-steps/policy/kyverno-apply/README.md)'s structure:
@@ -753,19 +771,20 @@ Check [Before you write a custom step](#before-you-write-a-custom-step) first, t
 
 ## Repository layout
 
-```
-kargo/                  everything Argo CD syncs into the Kargo control plane
-  custom-steps/<group>/<step>/   CustomPromotionStep + README
-  projects/<group>/              demo project: Project (Kargo creates its namespace), Warehouse, PromotionTasks, Stages
-argocd/                 root.yaml (created once in the Argo CD UI) and the apps it syncs (argocd/apps/)
-docker/<tool>/          step images (built by GitHub Actions, published to ghcr.io/34fathombelow)
-policy/                 policies used by the demos
-demo-fixtures/          inputs the demos and tests read (manifests, migrations, jsonnet)
-prereqs/                services some demos need on the agent cluster, synced by argocd/apps/ (never into Kargo)
-secrets/                which secrets to create in the Kargo UI (secrets are never stored or synced)
-test/                   local step harness, lint tool, and fixtures
-.github/workflows/      CI: checks, image builds, releases (what each one does: .github/workflows/README.md)
-```
+| Path | What's there |
+|---|---|
+| [`kargo/custom-steps/<group>/<step>/`](kargo/custom-steps) | Each custom step: the `CustomPromotionStep` and its README |
+| [`kargo/projects/<group>/`](kargo/projects) | Each group's demo project: Project, Warehouse, PromotionTasks, Stages |
+| [`argocd/`](argocd) | `root.yaml` (created once in the Argo CD UI) and the apps it syncs, in `argocd/apps/` |
+| [`prereqs/`](prereqs) | Services some demos need on the agent cluster, synced by Argo CD (never into Kargo) |
+| [`secrets/`](secrets) | Which secrets to create in the Kargo UI. Secrets are never stored in git |
+| [`docker/<tool>/`](docker) | Step images, built and published to `ghcr.io/34fathombelow` by GitHub Actions |
+| [`demo-fixtures/`](demo-fixtures) | Inputs the demos and tests read: manifests, Kyverno and OPA policies (`policies/`), migrations, jsonnet |
+| [`test/`](test) | The local step harness (`cmd/runstep`), the lint tool (`cmd/lint`) and each step's fixtures |
+| [`scripts/`](scripts) | `fork.sh`, and the generators for the README sections (`example-outputs.sh`, `step-images.sh`) |
+| [`.github/workflows/`](.github/workflows) | CI: checks, image builds, releases ([what each does](.github/workflows/README.md)) |
+| [`docs/images/`](docs/images) | The logo |
+| [`Makefile`](Makefile) | Every command above: `make help` lists them |
 
 ## Forking
 
