@@ -185,4 +185,4 @@ creates the two demo Applications for you ([`prereqs/argocd-drift-check`](../../
   `the step needs capabilities: [access-argocd]`.
 - Tested: harness fixtures in [`test/fixtures/argocd-drift-check`](../../../../test/fixtures/argocd-drift-check), using
   canned Application objects (`DRIFT_CHECK_APP_FILE`, a test-only hook) and fake in-cluster credentials.
-  **Untested against a live Argo CD** so far.
+  Also tested end to end with the demo project on the Akuity Platform, against the sample apps Argo CD deploys.

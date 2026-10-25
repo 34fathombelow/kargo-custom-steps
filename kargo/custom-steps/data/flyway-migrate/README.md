@@ -196,5 +196,6 @@ In real use, the rollback case happens when you promote older Freight whose migr
 - Tested: harness fixtures in [`test/fixtures/flyway-migrate`](../../../../test/fixtures/flyway-migrate) against Postgres 17
   (first migrate, re-run, rollback, dry run, empty password, unreachable DB, missing directory, wrong password, tricky password, unsupported database).
   Run `make test-services` before `make test STEP=flyway-migrate`.
-- Not yet tested on a live Kargo instance.
-- The image is [`docker/flyway`](../../../../docker/flyway): upstream Flyway plus `jq`, running as 65532.
+- Also tested end to end with the demo project on the Akuity Platform.
+- The image is [`docker/flyway`](../../../../docker/flyway): Flyway with its own Java runtime on alpine, plus `jq`, running as 65532,
+  without the large cloud and NoSQL drivers ([supported databases](../../../../docker/flyway/README.md#supported-databases)).
