@@ -8,5 +8,5 @@ expect:
     blocked: true
     scanned: false
   messageContains:
-  - "could not download Trivy's vulnerability DB from mirror.gcr.io"
+  - "could not download Trivy's vulnerability DB from mirror.gcr.io or ghcr.io"
   - "needs egress"

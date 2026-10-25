@@ -13,7 +13,7 @@ Beyond the [common prerequisites](../../../../README.md#prerequisites):
 | Reachable services | None |
 | Accounts / credentials | Registry credentials only for private images (`username` / `password`) |
 | Kargo capabilities | None |
-| Network egress | **`mirror.gcr.io`**, from the `custom-steps` agent cluster: every scan downloads Trivy's current vulnerability DB (about 130 MiB), and the Java DB (about 940 MiB) only for images that contain Java artifacts. Also the registry of the image being scanned |
+| Network egress | **`mirror.gcr.io`**, with **`ghcr.io`** as a fallback, from the `custom-steps` agent cluster: every scan downloads Trivy's current vulnerability DB (about 130 MiB), and the Java DB (about 940 MiB) only for images that contain Java artifacts. Also the registry of the image being scanned |
 | Inputs | If you use `ignorefile`: the file, checked out by an earlier `git-clone` step |
 
 Nothing is cached between promotions (each runs in a fresh pod), so every scan pays those downloads: a few seconds for
@@ -187,6 +187,8 @@ Demo project `custom-steps-supply-chain` ([kargo/projects/supply-chain](../../..
 
 ## Notes
 
+- **Mirror fallback.** Trivy fetches the DBs from `mirror.gcr.io`. When the mirror fails (it occasionally serves a 404
+  for a layer it hasn't caught up on), the step retries once from `ghcr.io`, Trivy's upstream source.
 - **Always the current DB.** The DBs are downloaded at scan time rather than baked into the image, so a gate never
   misses a vulnerability because its DB is days old. `dbUpdatedAt` in the output shows which DB build was used. The
   image itself is small (about 60 MiB to pull).

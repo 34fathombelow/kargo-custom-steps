@@ -113,7 +113,7 @@ Every step and demo needs:
   * For `argocd-drift-check`, this must be the Argo CD integrated with the `custom-steps` Kargo agent: the step reads
     Applications through that integration.
 * Network egress from the agent cluster to `ghcr.io` (step images) and `github.com` (the demos clone this repository).
-  Some steps reach more hosts, such as `mirror.gcr.io` for Trivy's vulnerability DBs and Sigstore for cosign.
+  Some steps reach more hosts, such as `mirror.gcr.io` (falling back to `ghcr.io`) for Trivy's vulnerability DBs and Sigstore for cosign.
 
 Some steps need more: a database, an Argo CD integration, or egress to other hosts. Each step's README lists its own
 under **Prerequisites** (cluster add-ons and which cluster, reachable services, accounts, Kargo capabilities, egress,
@@ -278,7 +278,7 @@ severity, lists them with their fixed versions, and links the advisories in the 
 downloads Trivy's current vulnerability DB (and the Java DB only for images with Java artifacts), so the gate never
 works from a stale DB.
 
-**Prerequisites:** egress from the agent cluster to `mirror.gcr.io` for the DBs (about 130 MiB per scan, plus about 940 MiB
+**Prerequisites:** egress from the agent cluster to `mirror.gcr.io` (or `ghcr.io`, the fallback) for the DBs (about 130 MiB per scan, plus about 940 MiB
 for images with Java), and registry credentials for private images.
 
 ```yaml

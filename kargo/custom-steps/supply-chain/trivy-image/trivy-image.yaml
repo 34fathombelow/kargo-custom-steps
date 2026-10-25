@@ -3,7 +3,8 @@
 # Scans a container image for known vulnerabilities with Trivy and blocks the
 # promotion when it finds any at the configured severities. Each scan downloads
 # the current vulnerability DB (and the Java DB only for images with Java
-# artifacts) from mirror.gcr.io, so the gate never uses a stale DB.
+# artifacts) from mirror.gcr.io, retrying from ghcr.io if the mirror fails, so
+# the gate never uses a stale DB.
 #
 # Config:
 #   image          - image to scan (required). Prefer a digest reference, e.g.
@@ -77,17 +78,27 @@ spec:
     fi
 
     # Download the current vulnerability DB first, so a missing route to the DB
-    # mirror is reported as such rather than as a failed scan.
+    # is reported as such rather than as a failed scan. Trivy tries mirror.gcr.io,
+    # but doesn't fall back to ghcr.io on every mirror error (e.g. a 404 for a
+    # layer the mirror hasn't caught up on), so retry there explicitly.
+    ghcr_db=ghcr.io/aquasecurity/trivy-db:2
+    ghcr_java_db=ghcr.io/aquasecurity/trivy-java-db:1
     if ! trivy image --download-db-only --quiet 2>/tmp/trivy-db.err; then
-      fail "could not download Trivy's vulnerability DB from mirror.gcr.io (the custom-steps agent cluster needs egress to it): $(tail -n 1 /tmp/trivy-db.err)"
+      echo "trivy-image: vulnerability DB download failed ($(tail -n 1 /tmp/trivy-db.err)); retrying from ghcr.io" >&2
+      trivy image --download-db-only --quiet --db-repository "$ghcr_db" 2>/tmp/trivy-db.err ||
+        fail "could not download Trivy's vulnerability DB from mirror.gcr.io or ghcr.io (the custom-steps agent cluster needs egress to one of them): $(tail -n 1 /tmp/trivy-db.err)"
     fi
     args+=(--skip-db-update)
 
+    # The Java DB is downloaded during the scan, only for images with Java artifacts.
     if ! trivy "${args[@]}" "$SCAN_IMAGE" 2>/tmp/trivy.err; then
       if grep -qi 'javadb\|java db' /tmp/trivy.err; then
-        fail "could not download Trivy's Java DB from mirror.gcr.io, needed because $SCAN_IMAGE contains Java artifacts (the custom-steps agent cluster needs egress to it): $(tail -n 1 /tmp/trivy.err)"
+        echo "trivy-image: Java DB download failed ($(tail -n 1 /tmp/trivy.err)); retrying from ghcr.io" >&2
+        trivy "${args[@]}" --java-db-repository "$ghcr_java_db" "$SCAN_IMAGE" 2>/tmp/trivy.err ||
+          fail "could not download Trivy's Java DB from mirror.gcr.io or ghcr.io, needed because $SCAN_IMAGE contains Java artifacts (the custom-steps agent cluster needs egress to one of them): $(tail -n 1 /tmp/trivy.err)"
+      else
+        fail "could not scan $SCAN_IMAGE: $(tail -n 3 /tmp/trivy.err)"
       fi
-      fail "could not scan $SCAN_IMAGE: $(tail -n 3 /tmp/trivy.err)"
     fi
 
     db_updated="$(trivy version --format json 2>/dev/null | jq -r '.VulnerabilityDB.UpdatedAt // empty' || true)"

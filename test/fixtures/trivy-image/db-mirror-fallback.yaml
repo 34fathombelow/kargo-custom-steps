@@ -1,0 +1,11 @@
+description: when mirror.gcr.io can't serve the vulnerability DB, the step retries from ghcr.io and the scan still runs
+config:
+  image: mirror.gcr.io/library/alpine:3.24.2
+# Stand-in for a broken mirror: point Trivy's first choice at a DB that doesn't exist.
+env:
+  TRIVY_DB_REPOSITORY: mirror.gcr.io/aquasec/no-such-trivy-db:2
+expect:
+  status: Succeeded
+  output:
+    blocked: false
+    scanned: true
