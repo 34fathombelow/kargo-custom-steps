@@ -13,6 +13,8 @@
 //     and rejects the Promotion if the Stage doesn't set a non-empty value)
 //   - every step has a README and at least two test fixtures, and the README's
 //     generated "Image" section matches the step's image and its Dockerfile
+//   - every step README has a generated "Example output" section, and the step
+//     is in scripts/example-outputs.sh's runs map with fixtures that exist
 //   - no file tells anyone to run kubectl or the kargo CLI: everything is GitOps
 //
 // Usage: lint -repo <repo root>
@@ -36,9 +38,9 @@ import (
 )
 
 const (
-	nsPrefix        = "custom-steps-"
-	imageRegistry   = "ghcr.io/34fathombelow/"
-	shardLabel      = "kargo.akuity.io/shard"
+	nsPrefix      = "custom-steps-"
+	imageRegistry = "ghcr.io/34fathombelow/"
+	shardLabel    = "kargo.akuity.io/shard"
 )
 
 // builtinSteps are the step kinds that ship with Kargo CE and Kargo Enterprise.
@@ -217,6 +219,7 @@ func (l *linter) checkStep(o object) {
 		l.errorf(o.file, "missing README.md next to the step")
 	} else {
 		l.checkImageSection(filepath.Join(dir, "README.md"), string(readme), image)
+		l.checkExampleOutput(filepath.Join(dir, "README.md"), string(readme), name)
 	}
 	fixtures, _ := filepath.Glob(filepath.Join(l.repo, "test", "fixtures", name, "*.yaml"))
 	if len(fixtures) < 2 {
@@ -245,6 +248,49 @@ func (l *linter) checkImageSection(file, readme, image string) {
 	if !strings.Contains(section, "```dockerfile\n"+string(dockerfile)+"```\n") {
 		l.errorf(file, "Image section is out of date with docker/%s/Dockerfile"+fix, tool)
 	}
+}
+
+// exampleRun matches one entry of the runs map in scripts/example-outputs.sh:
+//
+//	[step]="Label:fixture Label:fixture"
+var exampleRun = regexp.MustCompile(`(?m)^\s*\[([a-z0-9-]+)\]="([^"]*)"`)
+
+// checkExampleOutput checks the README has the "Example output" section that
+// scripts/example-outputs.sh generates, and that the script knows how to
+// generate it: the step is in its runs map, naming fixtures that exist.
+func (l *linter) checkExampleOutput(file, readme, name string) {
+	const fix = "; add the step to the runs map in scripts/example-outputs.sh and run it"
+	_, section, ok := strings.Cut(readme, "<!-- example-output:start")
+	section, _, ok2 := strings.Cut(section, "<!-- example-output:end -->")
+	if !ok || !ok2 || !strings.Contains(section, "## Example output") {
+		l.errorf(file, "missing the generated Example output section"+fix)
+	}
+	script, err := os.ReadFile(filepath.Join(l.repo, "scripts", "example-outputs.sh"))
+	if err != nil {
+		l.errorf(file, "cannot read scripts/example-outputs.sh: %v", err)
+		return
+	}
+	for _, m := range exampleRun.FindAllStringSubmatch(string(script), -1) {
+		if m[1] != name {
+			continue
+		}
+		runs := strings.Fields(m[2])
+		if len(runs) == 0 {
+			l.errorf(file, "scripts/example-outputs.sh lists no fixtures for %s", name)
+		}
+		for _, run := range runs {
+			_, fixture, ok := strings.Cut(run, ":")
+			if !ok {
+				l.errorf(file, "scripts/example-outputs.sh: %q for %s must be <label>:<fixture>", run, name)
+				continue
+			}
+			if _, err := os.Stat(filepath.Join(l.repo, "test", "fixtures", name, fixture+".yaml")); err != nil {
+				l.errorf(file, "scripts/example-outputs.sh uses fixture test/fixtures/%s/%s.yaml, which does not exist", name, fixture)
+			}
+		}
+		return
+	}
+	l.errorf(file, "%s is not in the runs map of scripts/example-outputs.sh"+fix, name)
 }
 
 func (l *linter) checkProject(dir string, objs []object, customSteps map[string]bool) {

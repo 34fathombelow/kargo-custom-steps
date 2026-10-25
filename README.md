@@ -85,41 +85,6 @@ The step runs in the promotion pod, in the same working directory as every other
 `git-clone` or `helm-template` produced and write files for later steps. Exit code `0` means the step succeeded;
 anything else fails the promotion, which is how gates block.
 
-## Before you write a custom step
-
-Check whether Kargo already does it. Kargo ships many
-[promotion steps](https://docs.kargo.io/user-guide/reference-docs/promotion-steps/) (`http` alone covers most
-"call this API" or "wait until this endpoint says yes" cases), Stages have native gating such as `requiredSoakTime`
-and `availabilityStrategy`, and Kargo Enterprise adds steps for ServiceNow, Jira, GitHub, Terraform/OpenTofu,
-approvals and messaging, plus promotion windows for change freezes and release slots. Write a custom step when the work needs a tool or logic those can't express.
-
-## Writing your own
-
-The examples here follow a few rules that come from how the executor actually runs a step. They are worth knowing
-before you write one:
-
-1. **Pass config through `env`, never into the script body.** `${{ config.x }}` inside a `bash -c` script breaks on
-   the first `'` or `"` in a value, is a shell-injection vector, and puts secrets on the process command line. Put
-   each value in an `env` entry and read `"$VAR"` in a static script.
-2. **Never pass a value raw.** Rendered values are re-parsed: `"1.30"` becomes `1.3`, `"007"` becomes `7`, the short
-   git SHA `1234567` becomes `1.234567e+06`, and maps arrive in Go syntax (`map[a:b]`). `quote()` fixes simple tokens
-   like versions and SHAs, but it applies Go escaping, so `pa"ss` arrives as `pa\"ss`.
-3. **For secrets, free-form text and structures, use `asJSON()` as the entire `env` value** and decode it in the
-   script: `jq -j .` for a string, `jq -c .` for a list or map. It is the only form that passes every value intact.
-4. **There is no shell unless you ask for one.** `command[0]` is executed directly and the image's entrypoint is
-   ignored, so use `bash -c` (or `sh -c`) explicitly.
-5. **The step runs as UID 65532** with all Linux capabilities dropped. Images that write to `$HOME` or a cache
-   directory need `HOME=/tmp` or a custom image. Every image in [docker/](docker) is built for this.
-6. **Exit code is the only status.** Exit 0 succeeds, anything else fails. There is no "running" state, so a step
-   that waits must loop inside its own command.
-7. **Output.** `output.source` can be the `$KARGO_OUTPUT` file (`key=value`), stdout, stderr, or a file. A `File`
-   path must be absolute (e.g. `/tmp/result.json`). A `transform` reshapes it, the result is capped at 256 KiB, and a
-   `links` list of `{url, label}` renders as links in the UI. Output is recorded even when the step fails, so a gate
-   can say *why* it blocked.
-8. **Fail with a message that names the fix.** "`config.password` is empty: did you create the flyway-db secret?"
-   beats a stack trace from the tool.
-9. **Assume retries.** A step can run more than once. Make side effects idempotent.
-
 ## Prerequisites
 
 Every step and demo needs:
@@ -165,6 +130,65 @@ Steps that need more:
 
 Each step's README has the full list: cluster add-ons and which cluster, reachable services, accounts, Kargo
 capabilities, egress, and inputs from earlier steps.
+
+## Running the demos
+
+Everything is GitOps: Argo CD syncs this repository, and the only manual steps happen in the Argo CD and Kargo UIs.
+
+To run everything as-is, point Argo CD at this repository. To customize anything (cluster names, which demos run,
+which prerequisites deploy), **fork it first**: Argo CD syncs from git, so changes only take effect in your fork.
+[Forking](#forking) covers `scripts/fork.sh`, which points every app at your fork.
+
+1. **Check the clusters in Argo CD.** `kargo1` and `custom-steps-agent` must be registered, and `in-cluster` available
+   (see [Prerequisites](#prerequisites)). If your names differ, fork and run `scripts/fork.sh` with them first.
+2. **Create the root app in the Argo CD UI:** + New App → Edit as YAML → paste [argocd/root.yaml](argocd/root.yaml) →
+   Create. It syncs every app in [argocd/apps/](argocd/apps):
+
+   | App | Syncs | To |
+   |---|---|---|
+   | `kargo-custom-steps` | every custom step and every group's demo project (`custom-steps-<group>`) from `kargo/` | `kargo1` |
+   | `kargo-custom-steps-prereq-postgres` | the demo Postgres for `flyway-migrate` ([prereqs/flyway-migrate](prereqs/flyway-migrate)) | `custom-steps-agent` |
+   | `kargo-custom-steps-prereq-drift-apps` | the two sample apps `argocd-drift-check` inspects ([prereqs/argocd-drift-check](prereqs/argocd-drift-check)) | `in-cluster` (Argo CD itself) |
+
+   To run only some demos, see [Choosing which demos to run](#choosing-which-demos-to-run). To skip a prerequisite,
+   delete its file from `argocd/apps/` in your fork.
+3. **Create the one secret the `data` demo needs** in the Kargo UI: `flyway-db` ([secrets/README.md](secrets/README.md)).
+4. **Promote in the Kargo UI.** Open a `custom-steps-<group>` project and promote the newest Freight into each Stage.
+   Green Stages should succeed and red ones should be blocked (yellow marks the `data` demo's rollback case, which
+   succeeds as a no-op). Each step's output is shown on the promotion.
+
+### Choosing which demos to run
+
+This is a change in git, so it needs a [fork](#forking). Each group is two folders under `kargo/`: its custom steps
+(`custom-steps/<group>/`) and its demo project (`projects/<group>/`). Select groups in [argocd/apps/kargo-custom-steps.yaml](argocd/apps/kargo-custom-steps.yaml) with
+`directory.include` or `directory.exclude`, using two patterns per group:
+
+```yaml
+spec:
+  source:
+    path: kargo
+    directory:
+      recurse: true
+      # Only the policy and supply-chain groups:
+      include: '{custom-steps/policy/*,projects/policy/*,custom-steps/supply-chain/*,projects/supply-chain/*}'
+      # ...or everything except the data group:
+      # exclude: '{custom-steps/data/*,projects/data/*}'
+```
+
+| Group | Patterns | Needs extra setup |
+|---|---|---|
+| policy | `custom-steps/policy/*`, `projects/policy/*` | no |
+| supply-chain | `custom-steps/supply-chain/*`, `projects/supply-chain/*` | no |
+| manifest-quality | `custom-steps/manifest-quality/*`, `projects/manifest-quality/*` | no |
+| rendering | `custom-steps/rendering/*`, `projects/rendering/*` | no |
+| release-insight | `custom-steps/release-insight/*`, `projects/release-insight/*` | Two sample Argo CD apps, synced automatically ([prereqs](prereqs/argocd-drift-check)) |
+| data | `custom-steps/data/*`, `projects/data/*` | Postgres (synced automatically, [prereqs](prereqs/flyway-migrate)) and the `flyway-db` secret ([secret](secrets/README.md)) |
+
+Patterns are matched against paths relative to `kargo/`, and `*` also matches across folders, so
+`custom-steps/policy/*` covers every step in the group. Removing a group from the selection prunes its steps and its
+Project, and Kargo then deletes the Project's namespace.
+
+A good first run is the groups that need no extra setup: policy, supply-chain, manifest-quality and rendering.
 
 ## Examples
 
@@ -579,64 +603,40 @@ spec:
 
 Full config, outputs and demo walkthrough: [kargo/custom-steps/rendering/jsonnet-render](kargo/custom-steps/rendering/jsonnet-render/README.md).
 
-## Running the demos
+## Before you write a custom step
 
-Everything is GitOps: Argo CD syncs this repository, and the only manual steps happen in the Argo CD and Kargo UIs.
+Check whether Kargo already does it. Kargo ships many
+[promotion steps](https://docs.kargo.io/user-guide/reference-docs/promotion-steps/) (`http` alone covers most
+"call this API" or "wait until this endpoint says yes" cases), Stages have native gating such as `requiredSoakTime`
+and `availabilityStrategy`, and Kargo Enterprise adds steps for ServiceNow, Jira, GitHub, Terraform/OpenTofu,
+approvals and messaging, plus promotion windows for change freezes and release slots. Write a custom step when the work needs a tool or logic those can't express.
 
-To run everything as-is, point Argo CD at this repository. To customize anything (cluster names, which demos run,
-which prerequisites deploy), **fork it first**: Argo CD syncs from git, so changes only take effect in your fork.
-[Forking](#forking) covers `scripts/fork.sh`, which points every app at your fork.
+## Writing your own
 
-1. **Check the clusters in Argo CD.** `kargo1` and `custom-steps-agent` must be registered, and `in-cluster` available
-   (see [Prerequisites](#prerequisites)). If your names differ, fork and run `scripts/fork.sh` with them first.
-2. **Create the root app in the Argo CD UI:** + New App → Edit as YAML → paste [argocd/root.yaml](argocd/root.yaml) →
-   Create. It syncs every app in [argocd/apps/](argocd/apps):
+The examples here follow a few rules that come from how the executor actually runs a step. They are worth knowing
+before you write one:
 
-   | App | Syncs | To |
-   |---|---|---|
-   | `kargo-custom-steps` | every custom step and every group's demo project (`custom-steps-<group>`) from `kargo/` | `kargo1` |
-   | `kargo-custom-steps-prereq-postgres` | the demo Postgres for `flyway-migrate` ([prereqs/flyway-migrate](prereqs/flyway-migrate)) | `custom-steps-agent` |
-   | `kargo-custom-steps-prereq-drift-apps` | the two sample apps `argocd-drift-check` inspects ([prereqs/argocd-drift-check](prereqs/argocd-drift-check)) | `in-cluster` (Argo CD itself) |
-
-   To run only some demos, see [Choosing which demos to run](#choosing-which-demos-to-run). To skip a prerequisite,
-   delete its file from `argocd/apps/` in your fork.
-3. **Create the one secret the `data` demo needs** in the Kargo UI: `flyway-db` ([secrets/README.md](secrets/README.md)).
-4. **Promote in the Kargo UI.** Open a `custom-steps-<group>` project and promote the newest Freight into each Stage.
-   Green Stages should succeed and red ones should be blocked (yellow marks the `data` demo's rollback case, which
-   succeeds as a no-op). Each step's output is shown on the promotion.
-
-### Choosing which demos to run
-
-This is a change in git, so it needs a [fork](#forking). Each group is two folders under `kargo/`: its custom steps
-(`custom-steps/<group>/`) and its demo project (`projects/<group>/`). Select groups in [argocd/apps/kargo-custom-steps.yaml](argocd/apps/kargo-custom-steps.yaml) with
-`directory.include` or `directory.exclude`, using two patterns per group:
-
-```yaml
-spec:
-  source:
-    path: kargo
-    directory:
-      recurse: true
-      # Only the policy and supply-chain groups:
-      include: '{custom-steps/policy/*,projects/policy/*,custom-steps/supply-chain/*,projects/supply-chain/*}'
-      # ...or everything except the data group:
-      # exclude: '{custom-steps/data/*,projects/data/*}'
-```
-
-| Group | Patterns | Needs extra setup |
-|---|---|---|
-| policy | `custom-steps/policy/*`, `projects/policy/*` | no |
-| supply-chain | `custom-steps/supply-chain/*`, `projects/supply-chain/*` | no |
-| manifest-quality | `custom-steps/manifest-quality/*`, `projects/manifest-quality/*` | no |
-| rendering | `custom-steps/rendering/*`, `projects/rendering/*` | no |
-| release-insight | `custom-steps/release-insight/*`, `projects/release-insight/*` | Two sample Argo CD apps, synced automatically ([prereqs](prereqs/argocd-drift-check)) |
-| data | `custom-steps/data/*`, `projects/data/*` | Postgres (synced automatically, [prereqs](prereqs/flyway-migrate)) and the `flyway-db` secret ([secret](secrets/README.md)) |
-
-Patterns are matched against paths relative to `kargo/`, and `*` also matches across folders, so
-`custom-steps/policy/*` covers every step in the group. Removing a group from the selection prunes its steps and its
-Project, and Kargo then deletes the Project's namespace.
-
-A good first run is the groups that need no extra setup: policy, supply-chain, manifest-quality and rendering.
+1. **Pass config through `env`, never into the script body.** `${{ config.x }}` inside a `bash -c` script breaks on
+   the first `'` or `"` in a value, is a shell-injection vector, and puts secrets on the process command line. Put
+   each value in an `env` entry and read `"$VAR"` in a static script.
+2. **Never pass a value raw.** Rendered values are re-parsed: `"1.30"` becomes `1.3`, `"007"` becomes `7`, the short
+   git SHA `1234567` becomes `1.234567e+06`, and maps arrive in Go syntax (`map[a:b]`). `quote()` fixes simple tokens
+   like versions and SHAs, but it applies Go escaping, so `pa"ss` arrives as `pa\"ss`.
+3. **For secrets, free-form text and structures, use `asJSON()` as the entire `env` value** and decode it in the
+   script: `jq -j .` for a string, `jq -c .` for a list or map. It is the only form that passes every value intact.
+4. **There is no shell unless you ask for one.** `command[0]` is executed directly and the image's entrypoint is
+   ignored, so use `bash -c` (or `sh -c`) explicitly.
+5. **The step runs as UID 65532** with all Linux capabilities dropped. Images that write to `$HOME` or a cache
+   directory need `HOME=/tmp` or a custom image. Every image in [docker/](docker) is built for this.
+6. **Exit code is the only status.** Exit 0 succeeds, anything else fails. There is no "running" state, so a step
+   that waits must loop inside its own command.
+7. **Output.** `output.source` can be the `$KARGO_OUTPUT` file (`key=value`), stdout, stderr, or a file. A `File`
+   path must be absolute (e.g. `/tmp/result.json`). A `transform` reshapes it, the result is capped at 256 KiB, and a
+   `links` list of `{url, label}` renders as links in the UI. Output is recorded even when the step fails, so a gate
+   can say *why* it blocked.
+8. **Fail with a message that names the fix.** "`config.password` is empty: did you create the flyway-db secret?"
+   beats a stack trace from the tool.
+9. **Assume retries.** A step can run more than once. Make side effects idempotent.
 
 ## Testing steps locally
 
@@ -668,6 +668,55 @@ expect:
     passed: false
     counts: {removed: 1, deprecated: 0}
 ```
+
+## Contributing
+
+Contributions are welcome: a new step, a fix, or a better demo. Pick an idea below or bring your own,
+then follow [Adding a step](#adding-a-step).
+
+### More custom steps to build
+
+Ideas for custom steps that would fit here, by group. Contributions welcome: see [Adding a step](#adding-a-step).
+
+| Group | Step | What it would do |
+|---|---|---|
+| policy | `gatekeeper-gator` | Test manifests offline against existing OPA Gatekeeper ConstraintTemplates and Constraints with `gator` |
+| policy | `kyverno-apply` `cluster` mode (enhancement) | Evaluate against the Kyverno policies installed in the target cluster, so the gate matches admission exactly |
+| supply-chain | `grype-image` | The `trivy-image` gate with [Grype](https://github.com/anchore/grype) |
+| supply-chain | `extract-images` | List every image in rendered manifests, to scan or verify each one |
+| supply-chain | `sbom-generate` | Write an SBOM ([Syft](https://github.com/anchore/syft)) next to the manifests |
+| supply-chain | `slsa-verify` | Check build provenance with [slsa-verifier](https://github.com/slsa-framework/slsa-verifier) |
+| supply-chain | `notation-verify` | Verify [Notation](https://notaryproject.dev) signatures |
+| manifest-quality | `kubeconform` | Schema-validate manifests, including CRDs, for the target Kubernetes version |
+| manifest-quality | `kube-linter`, `polaris-audit` | Best-practice linting (resource limits, probes, root containers) with a score or issue count |
+| manifest-quality | `checkov-scan` | Security misconfiguration scanning for Kubernetes, Helm and Terraform |
+| release-insight | `release-notes` | A changelog from conventional commits ([git-cliff](https://git-cliff.org)) between two revisions |
+| release-insight | `pulumi-preview` | A `pulumi preview` summary as an output, for Pulumi-managed infrastructure |
+| release-insight | `infracost-diff` | The monthly cost change of a Terraform change ([Infracost](https://www.infracost.io)) |
+| data | `atlas-lint` | Flag destructive schema changes before they ship ([Atlas](https://atlasgo.io)) |
+| data | `liquibase-update` | `flyway-migrate` for Liquibase changelogs |
+| rendering | `kcl-render`, `cue-export`, `timoni-build` | Render manifests with [KCL](https://www.kcl-lang.io), [CUE](https://cuelang.org) or [Timoni](https://timoni.sh) |
+| rendering | `cdk8s-synth` | Synthesize manifests from a [cdk8s](https://cdk8s.io) app (TypeScript, Python, Go or Java) |
+| rendering | `helmfile-template` | Render a [Helmfile](https://helmfile.readthedocs.io) (several releases and environments) with `helmfile template` |
+| rendering | `envsubst-render` | Render templates with [gomplate](https://gomplate.ca) or `envsubst` |
+| rendering | `sops-decrypt` | Decrypt [SOPS](https://getsops.io) files (age or KMS) during rendering |
+| rendering | `dockerfile-update` | Set a Dockerfile's `ARG` defaults and `FROM` tags/digests from Freight (e.g. a new base image), in the workdir. Kargo's `yaml-update` and image steps don't handle Dockerfiles. The output shows the diff |
+| release-insight | `sentry-release` | Create a [Sentry](https://sentry.io) release and associate its commits with `sentry-cli` |
+
+Before adding one, check that Kargo doesn't already do it (see [Before you write a custom step](#before-you-write-a-custom-step)).
+
+### Adding a step
+
+1. Check [Before you write a custom step](#before-you-write-a-custom-step) first.
+2. Add `kargo/custom-steps/<group>/<step>/<step>.yaml` and a `README.md` (copy
+   [kyverno-apply](kargo/custom-steps/policy/kyverno-apply/README.md)'s structure, including **Prerequisites**).
+3. Use an image from `docker/`, or add `docker/<tool>/Dockerfile` with `ARG <TOOL>_VERSION=<version>`.
+4. Add fixtures in `test/fixtures/<step>/`, at least one passing and one failing.
+   Run `make step-images` to add the README's generated "Image" section (the Dockerfile the step runs in).
+   Add the step to the `runs` map in `scripts/example-outputs.sh` (one passing and one failing fixture), then run
+   `scripts/example-outputs.sh <step>` to generate its "Example output" section. `make lint` fails until both exist.
+5. Add a PromotionTask and Stages to `kargo/projects/<group>/`.
+6. `make check`.
 
 ## Repository layout
 
@@ -704,45 +753,3 @@ Then build the images. Either push to GitHub and let the **Images** workflow pub
 registry (Actions → Images → Run workflow → `all` to build them all by hand), or build and push from your machine with
 `make push` (multi-arch; needs `docker login`). GHCR packages start out private: make them public, or promotion pods
 can't pull them.
-
-## More custom steps to build
-
-Ideas for custom steps that would fit here, by group. Contributions welcome: see [Adding a step](#adding-a-step).
-
-| Group | Step | What it would do |
-|---|---|---|
-| policy | `gatekeeper-gator` | Test manifests offline against existing OPA Gatekeeper ConstraintTemplates and Constraints with `gator` |
-| policy | `kyverno-apply` `cluster` mode (enhancement) | Evaluate against the Kyverno policies installed in the target cluster, so the gate matches admission exactly |
-| supply-chain | `grype-image` | The `trivy-image` gate with [Grype](https://github.com/anchore/grype) |
-| supply-chain | `extract-images` | List every image in rendered manifests, to scan or verify each one |
-| supply-chain | `sbom-generate` | Write an SBOM ([Syft](https://github.com/anchore/syft)) next to the manifests |
-| supply-chain | `slsa-verify` | Check build provenance with [slsa-verifier](https://github.com/slsa-framework/slsa-verifier) |
-| supply-chain | `notation-verify` | Verify [Notation](https://notaryproject.dev) signatures |
-| manifest-quality | `kubeconform` | Schema-validate manifests, including CRDs, for the target Kubernetes version |
-| manifest-quality | `kube-linter`, `polaris-audit` | Best-practice linting (resource limits, probes, root containers) with a score or issue count |
-| manifest-quality | `checkov-scan` | Security misconfiguration scanning for Kubernetes, Helm and Terraform |
-| release-insight | `release-notes` | A changelog from conventional commits ([git-cliff](https://git-cliff.org)) between two revisions |
-| release-insight | `pulumi-preview` | A `pulumi preview` summary as an output, for Pulumi-managed infrastructure |
-| release-insight | `infracost-diff` | The monthly cost change of a Terraform change ([Infracost](https://www.infracost.io)) |
-| data | `atlas-lint` | Flag destructive schema changes before they ship ([Atlas](https://atlasgo.io)) |
-| data | `liquibase-update` | `flyway-migrate` for Liquibase changelogs |
-| rendering | `kcl-render`, `cue-export`, `timoni-build` | Render manifests with [KCL](https://www.kcl-lang.io), [CUE](https://cuelang.org) or [Timoni](https://timoni.sh) |
-| rendering | `cdk8s-synth` | Synthesize manifests from a [cdk8s](https://cdk8s.io) app (TypeScript, Python, Go or Java) |
-| rendering | `helmfile-template` | Render a [Helmfile](https://helmfile.readthedocs.io) (several releases and environments) with `helmfile template` |
-| rendering | `envsubst-render` | Render templates with [gomplate](https://gomplate.ca) or `envsubst` |
-| rendering | `sops-decrypt` | Decrypt [SOPS](https://getsops.io) files (age or KMS) during rendering |
-| rendering | `dockerfile-update` | Set a Dockerfile's `ARG` defaults and `FROM` tags/digests from Freight (e.g. a new base image), in the workdir. Kargo's `yaml-update` and image steps don't handle Dockerfiles. The output shows the diff |
-| release-insight | `sentry-release` | Create a [Sentry](https://sentry.io) release and associate its commits with `sentry-cli` |
-
-Before adding one, check that Kargo doesn't already do it (see [Before you write a custom step](#before-you-write-a-custom-step)).
-
-## Adding a step
-
-1. Check [Before you write a custom step](#before-you-write-a-custom-step) first.
-2. Add `kargo/custom-steps/<group>/<step>/<step>.yaml` and a `README.md` (copy
-   [kyverno-apply](kargo/custom-steps/policy/kyverno-apply/README.md)'s structure, including **Prerequisites**).
-3. Use an image from `docker/`, or add `docker/<tool>/Dockerfile` with `ARG <TOOL>_VERSION=<version>`.
-4. Add fixtures in `test/fixtures/<step>/`, at least one passing and one failing.
-   Run `make step-images` to add the README's generated "Image" section (the Dockerfile the step runs in).
-5. Add a PromotionTask and Stages to `kargo/projects/<group>/`.
-6. `make check`.
