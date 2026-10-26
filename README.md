@@ -29,7 +29,7 @@ or compliance checks that don't fit a standard mold. Custom steps make these pos
 Examples of when you would use a custom step:
 
 * Policy-as-code gates: `kyverno`, `conftest`, `opa`
-* Image vulnerability scanning and signature verification: `trivy`, `cosign`
+* Image vulnerability scanning, signature and provenance verification: `trivy`, `cosign`, `slsa-verifier`
 * Manifest checks against the target cluster version: `pluto`
 * Understanding a release: semantic manifest diffs, git history, Argo CD drift
 * Organization-specific checks no built-in step covers
@@ -113,7 +113,7 @@ Every step and demo needs:
   * For `argocd-drift-check`, this must be the Argo CD integrated with the `custom-steps` Kargo agent: the step reads
     Applications through that integration.
 * Network egress from the agent cluster to `ghcr.io` (step images) and `github.com` (the demos clone this repository).
-  Some steps reach more hosts, such as `mirror.gcr.io` (falling back to `ghcr.io`) for Trivy's vulnerability DBs and Sigstore for cosign.
+  Some steps reach more hosts, such as `mirror.gcr.io` (falling back to `ghcr.io`) for Trivy's vulnerability DBs and Sigstore for cosign and slsa-verifier.
 
 Some steps need more: a database, an Argo CD integration, or egress to other hosts. Each step's README lists its own
 under **Prerequisites** (cluster add-ons and which cluster, reachable services, accounts, Kargo capabilities, egress,
@@ -189,7 +189,7 @@ a blocked promotion shows.
 | Group | Custom steps | Demo project |
 |---|---|---|
 | [Policy](#policy) | `kyverno-apply`, `opa-conftest`, `opa-promotion-gate` | [`custom-steps-policy`](kargo/projects/policy) |
-| [Supply chain](#supply-chain) | `trivy-image`, `cosign-verify` | [`custom-steps-supply-chain`](kargo/projects/supply-chain) |
+| [Supply chain](#supply-chain) | `trivy-image`, `cosign-verify`, `slsa-verify` | [`custom-steps-supply-chain`](kargo/projects/supply-chain) |
 | [Manifest quality](#manifest-quality) | `deprecated-apis`, `cluster-version` | [`custom-steps-manifest-quality`](kargo/projects/manifest-quality) |
 | [Release insight](#release-insight) | `manifest-diff`, `release-diff`, `argocd-drift-check` | [`custom-steps-release-insight`](kargo/projects/release-insight) |
 | [Data](#data) | `flyway-migrate` | [`custom-steps-data`](kargo/projects/data) |
@@ -343,6 +343,44 @@ spec:
 ```
 
 Full definition and reference: [kargo/custom-steps/supply-chain/cosign-verify](kargo/custom-steps/supply-chain/cosign-verify).
+
+#### slsa-verify
+
+Verifies the [SLSA](https://slsa.dev) build provenance of the image, or of release files such as binaries and SBOMs,
+with [slsa-verifier](https://github.com/slsa-framework/slsa-verifier): that a trusted builder built it from the source
+repository you expect, and, with the Freight's image tag as `sourceTag`, from the matching git tag. Missing provenance,
+or a build from another repository, tag, commit or builder, blocks the promotion. On success the output names the
+builder, ref, commit and workflow, and links the source commit and the CI run.
+
+**Prerequisites:** egress to the Sigstore public-good infrastructure, and registry credentials for private images.
+
+```yaml
+apiVersion: ee.kargo.akuity.io/v1alpha1
+kind: CustomPromotionStep
+metadata:
+  name: slsa-verify
+spec:
+  image: ghcr.io/34fathombelow/slsa-verifier:v2.7.1
+  env:
+  - name: VERIFY_IMAGE
+    value: ${{ quote(config.image ?? "") }}
+  - name: VERIFY_SOURCE_URI
+    value: ${{ quote(config.sourceUri ?? "") }}
+  - name: VERIFY_SOURCE_TAG
+    value: ${{ quote(config.sourceTag ?? "") }}
+  # ... (artifacts + provenancePath, sourceVersionedTag, sourceBranch, sourceCommit, builderId, registry credentials)
+  command:
+  - bash
+  - -c
+  - |
+    # slsa-verifier verify-image "$VERIFY_IMAGE" --source-uri "$VERIFY_SOURCE_URI" --source-tag "$VERIFY_SOURCE_TAG" --print-provenance
+  output:
+    source:
+      type: File
+      path: /tmp/slsa-verify.json
+```
+
+Full definition and reference: [kargo/custom-steps/supply-chain/slsa-verify](kargo/custom-steps/supply-chain/slsa-verify).
 
 ### Manifest quality
 
@@ -684,7 +722,6 @@ Ideas for custom steps that would fit here, by group. Contributions welcome: see
 | supply-chain | `grype-image` | The `trivy-image` gate with [Grype](https://github.com/anchore/grype) |
 | supply-chain | `extract-images` | List every image in rendered manifests, to scan or verify each one |
 | supply-chain | `sbom-generate` | Write an SBOM ([Syft](https://github.com/anchore/syft)) next to the manifests |
-| supply-chain | `slsa-verify` | Check build provenance with [slsa-verifier](https://github.com/slsa-framework/slsa-verifier) |
 | supply-chain | `notation-verify` | Verify [Notation](https://notaryproject.dev) signatures |
 | manifest-quality | `kubeconform` | Schema-validate manifests, including CRDs, for the target Kubernetes version |
 | manifest-quality | `kube-linter`, `polaris-audit` | Best-practice linting (resource limits, probes, root containers) with a score or issue count |

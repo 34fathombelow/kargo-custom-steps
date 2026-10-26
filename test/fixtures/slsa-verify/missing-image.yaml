@@ -1,0 +1,10 @@
+description: config.image or config.artifacts is required
+config:
+  sourceUri: github.com/argoproj/argo-cd
+expect:
+  status: Failed
+  output:
+    verified: false
+  messageContains:
+  - "set config.image"
+  - "or config.artifacts"

@@ -1,0 +1,10 @@
+description: config.provenancePath is required with config.artifacts
+config:
+  artifacts: [release/sbom.tar.gz]
+  sourceUri: github.com/argoproj/argo-cd
+files:
+  release: test/fixtures/slsa-verify/files/argocd-v3.5.6
+expect:
+  status: Failed
+  messageContains:
+  - "config.provenancePath is required with config.artifacts"

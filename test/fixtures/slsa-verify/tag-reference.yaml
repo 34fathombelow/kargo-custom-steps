@@ -1,0 +1,10 @@
+description: an image referenced by tag instead of digest is refused
+config:
+  image: quay.io/argoproj/argocd:v3.5.6
+  sourceUri: github.com/argoproj/argo-cd
+expect:
+  status: Failed
+  output:
+    verified: false
+  messageContains:
+  - "config.image must be pinned by digest"

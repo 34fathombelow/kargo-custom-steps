@@ -1,0 +1,200 @@
+# CustomPromotionStep: slsa-verify
+#
+# Verifies the SLSA build provenance of an image, or of release files in the
+# workdir, with slsa-verifier: that a trusted builder built it from the source
+# repository (and tag, branch or commit) you expect. Blocks the promotion when
+# there is no provenance or it doesn't match.
+#
+# Config (set image or artifacts):
+#   image               - image to verify, by digest
+#   artifacts           - workdir files to verify instead, e.g. release binaries (a list, or one path)
+#   provenancePath      - workdir provenance file: required with artifacts (e.g. <name>.intoto.jsonl);
+#                         for an image, used instead of the registry (e.g. Google Cloud Build)
+#   sourceUri           - repository it must be built from, e.g. github.com/org/repo (required)
+#   sourceTag           - exact git tag it must be built from, e.g. the Freight tag (optional)
+#   sourceVersionedTag  - semver prefix the tag must match instead, e.g. v1 or v1.2 (optional)
+#   sourceBranch        - branch it must be built from (optional)
+#   sourceCommit        - commit it must be built from, full or at least 7 characters (optional)
+#   builderId           - trusted builder ID, e.g. a slsa-github-generator workflow (optional)
+#   buildWorkflowInputs - map of workflow_dispatch inputs the build must have used (optional)
+#   provenanceRepository - image only: registry/repository holding the provenance, when not the image's (optional)
+#   username, password  - image only: registry credentials for private images (optional)
+#
+# Output (JSON): verified, image, digest, artifacts, sourceUri, builderId, sourceRepo, ref,
+#                commit, workflow, predicateType, links, error
+apiVersion: ee.kargo.akuity.io/v1alpha1
+kind: CustomPromotionStep
+metadata:
+  name: slsa-verify
+spec:
+  # Must equal ARG SLSA_VERIFIER_VERSION in docker/slsa-verifier/Dockerfile (make lint checks it).
+  image: ghcr.io/34fathombelow/slsa-verifier:v2.7.1
+  defaultTimeout: 5m
+  defaultErrorThreshold: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+  env:
+  - name: VERIFY_IMAGE
+    value: ${{ quote(config.image ?? "") }}
+  - name: VERIFY_ARTIFACTS
+    value: ${{ asJSON(config.artifacts ?? []) }}
+  - name: VERIFY_SOURCE_URI
+    value: ${{ quote(config.sourceUri ?? "") }}
+  - name: VERIFY_SOURCE_TAG
+    value: ${{ quote(config.sourceTag ?? "") }}
+  - name: VERIFY_SOURCE_VERSIONED_TAG
+    value: ${{ quote(config.sourceVersionedTag ?? "") }}
+  - name: VERIFY_SOURCE_BRANCH
+    value: ${{ quote(config.sourceBranch ?? "") }}
+  - name: VERIFY_SOURCE_COMMIT
+    value: ${{ quote(config.sourceCommit ?? "") }}
+  - name: VERIFY_BUILDER_ID
+    value: ${{ quote(config.builderId ?? "") }}
+  - name: VERIFY_WORKFLOW_INPUTS
+    value: ${{ asJSON(config.buildWorkflowInputs ?? {}) }}
+  - name: VERIFY_PROVENANCE_REPOSITORY
+    value: ${{ quote(config.provenanceRepository ?? "") }}
+  - name: VERIFY_PROVENANCE_PATH
+    value: ${{ quote(config.provenancePath ?? "") }}
+  - name: VERIFY_USERNAME
+    value: ${{ asJSON(config.username ?? "") }}
+  - name: VERIFY_PASSWORD
+    value: ${{ asJSON(config.password ?? "") }}
+  command:
+  - bash
+  - -c
+  - |
+    set -euo pipefail
+    # Secrets arrive as JSON (asJSON) so quotes, backslashes and newlines survive.
+    VERIFY_USERNAME="$(jq -j . <<<"$VERIFY_USERNAME")"
+    VERIFY_PASSWORD="$(jq -j . <<<"$VERIFY_PASSWORD")"
+    VERIFY_WORKFLOW_INPUTS="$(jq -c . <<<"$VERIFY_WORKFLOW_INPUTS")"
+    # artifacts may be one path or a list of them.
+    VERIFY_ARTIFACTS="$(jq -c 'if type == "string" then [.] else . end' <<<"$VERIFY_ARTIFACTS")"
+    out=/tmp/slsa-verify.json
+    trap 'echo "slsa-verify: unexpected error on line $LINENO" >&2' ERR
+    result() { # verified error [provenance file]
+      jq -n --argjson verified "$1" --arg error "$2" --arg image "$VERIFY_IMAGE" --arg source "$VERIFY_SOURCE_URI" \
+        --argjson artifacts "$VERIFY_ARTIFACTS" --slurpfile p "${3:-/dev/null}" '
+        ($p[0] // {}) as $p |
+        # SLSA v0.2 (slsa-github-generator v1 and v2 container workflows) or v1.0 provenance.
+        ($p.predicate // {}) as $pr |
+        ($pr.invocation.environment // {}) as $env |
+        ($pr.buildDefinition.externalParameters.workflow // {}) as $wf |
+        (($pr.invocation.configSource.uri // "") | sub("^git\\+"; "") | sub("@.*$"; "")) as $v02repo |
+        {
+          verified: $verified,
+          image: $image,
+          digest: ($image | capture("@(?<d>sha256:[0-9a-f]+)$").d? // ""),
+          artifacts: (if ($artifacts | type) == "array" then $artifacts else [] end),
+          sourceUri: $source,
+          builderId: ($pr.builder.id // $pr.runDetails.builder.id // ""),
+          sourceRepo: (if $v02repo != "" then $v02repo else ($wf.repository // "") end),
+          ref: ($env.github_ref // $wf.ref // ""),
+          commit: ($pr.invocation.configSource.digest.sha1 // $pr.buildDefinition.resolvedDependencies[0].digest.gitCommit // ""),
+          workflow: ($pr.invocation.configSource.entryPoint // $wf.path // ""),
+          predicateType: ($p.predicateType // ""),
+          runUrl: (if ($env.github_run_id // "") != "" and $v02repo != ""
+                   then "\($v02repo)/actions/runs/\($env.github_run_id)/attempts/\($env.github_run_attempt // "1")"
+                   else ($pr.runDetails.metadata.invocationId // "") end),
+          error: $error
+        } |
+        .links = ([
+          (select(.commit != "" and (.sourceRepo | startswith("https://github.com/")))
+            | {url: "\(.sourceRepo)/commit/\(.commit)", label: "Source commit \(.commit[:12])",
+               tooltip: "The commit this was built from, per its provenance"}),
+          (select(.runUrl | startswith("https://"))
+            | {url: .runUrl, label: "Build run", tooltip: "The CI run that built this"})
+        ]) | del(.runUrl)' > "$out"
+    }
+    fail() { result false "$*"; echo "slsa-verify: $*" >&2; exit 1; }
+
+    jq -e 'type == "array" and all(type == "string")' <<<"$VERIFY_ARTIFACTS" >/dev/null \
+      || fail "config.artifacts must be a workdir path or a list of them"
+    if [ "$VERIFY_ARTIFACTS" != "[]" ]; then
+      [ -z "$VERIFY_IMAGE" ] || fail "set config.image or config.artifacts, not both"
+      [ -n "$VERIFY_PROVENANCE_PATH" ] || fail "config.provenancePath is required with config.artifacts (the release's .intoto.jsonl provenance file)"
+      [ -z "$VERIFY_PROVENANCE_REPOSITORY" ] || fail "config.provenanceRepository applies only to config.image"
+      mapfile -t files < <(jq -r '.[]' <<<"$VERIFY_ARTIFACTS")
+      for f in "${files[@]}"; do
+        [ -f "$f" ] || fail "artifact $f not found in the workdir (did an earlier step download it?)"
+      done
+      subject="$(jq -r 'join(", ")' <<<"$VERIFY_ARTIFACTS")"
+      args=(verify-artifact "${files[@]}")
+    else
+      [ -n "$VERIFY_IMAGE" ] || fail "set config.image (e.g. the image from Freight, pinned by digest) or config.artifacts"
+      [[ "$VERIFY_IMAGE" == *@sha256:* ]] || fail "config.image must be pinned by digest (repo@sha256:...), got $VERIFY_IMAGE: provenance is for one exact image, and a tag can move"
+      subject="$VERIFY_IMAGE"
+      args=(verify-image "$VERIFY_IMAGE")
+    fi
+    [ -n "$VERIFY_SOURCE_URI" ] || fail "config.sourceUri is required: the repository it must be built from, e.g. github.com/org/repo"
+    if [ -n "$VERIFY_SOURCE_TAG" ] && [ -n "$VERIFY_SOURCE_VERSIONED_TAG" ]; then
+      fail "set config.sourceTag or config.sourceVersionedTag, not both"
+    fi
+    VERIFY_SOURCE_COMMIT="$(tr '[:upper:]' '[:lower:]' <<<"$VERIFY_SOURCE_COMMIT")"
+    if [ -n "$VERIFY_SOURCE_COMMIT" ] && ! [[ "$VERIFY_SOURCE_COMMIT" =~ ^[0-9a-f]{7,64}$ ]]; then
+      fail "config.sourceCommit must be a git commit SHA (at least 7 hex characters), got $VERIFY_SOURCE_COMMIT"
+    fi
+    jq -e 'type == "object"' <<<"$VERIFY_WORKFLOW_INPUTS" >/dev/null \
+      || fail "config.buildWorkflowInputs must be a map of workflow input names to values"
+    if [ -n "$VERIFY_PROVENANCE_PATH" ] && [ ! -f "$VERIFY_PROVENANCE_PATH" ]; then
+      fail "provenance file $VERIFY_PROVENANCE_PATH not found in the workdir (did an earlier step download it?)"
+    fi
+
+    args+=(--source-uri "${VERIFY_SOURCE_URI#https://}" --print-provenance)
+    [ -n "$VERIFY_SOURCE_TAG" ] && args+=(--source-tag "$VERIFY_SOURCE_TAG")
+    [ -n "$VERIFY_SOURCE_VERSIONED_TAG" ] && args+=(--source-versioned-tag "$VERIFY_SOURCE_VERSIONED_TAG")
+    [ -n "$VERIFY_SOURCE_BRANCH" ] && args+=(--source-branch "$VERIFY_SOURCE_BRANCH")
+    [ -n "$VERIFY_BUILDER_ID" ] && args+=(--builder-id "$VERIFY_BUILDER_ID")
+    [ -n "$VERIFY_PROVENANCE_REPOSITORY" ] && args+=(--provenance-repository "$VERIFY_PROVENANCE_REPOSITORY")
+    [ -n "$VERIFY_PROVENANCE_PATH" ] && args+=(--provenance-path "$VERIFY_PROVENANCE_PATH")
+    while IFS= read -r input; do
+      [ -n "$input" ] && args+=(--build-workflow-input "$input")
+    done < <(jq -r 'to_entries[] | "\(.key)=\(.value)"' <<<"$VERIFY_WORKFLOW_INPUTS")
+
+    # slsa-verifier reads registry credentials from the Docker config file.
+    if [ -n "$VERIFY_USERNAME" ] && [ -n "$VERIFY_IMAGE" ]; then
+      host="${VERIFY_IMAGE%%/*}"
+      if [[ "$VERIFY_IMAGE" != */* || ( "$host" != *.* && "$host" != *:* && "$host" != localhost ) ]]; then
+        host=https://index.docker.io/v1/
+      fi
+      mkdir -p "$HOME/.docker"
+      jq -n --arg h "$host" --arg a "$(printf '%s:%s' "$VERIFY_USERNAME" "$VERIFY_PASSWORD" | base64 | tr -d '\n')" \
+        '{auths: {($h): {auth: $a}}}' > "$HOME/.docker/config.json"
+    fi
+
+    if ! slsa-verifier "${args[@]}" > /tmp/provenance.json 2> /tmp/verify.err; then
+      reason="$(grep -m1 -E '^FAILED:' /tmp/verify.err || tail -n 1 /tmp/verify.err || true)"
+      reason="${reason#FAILED: }"; reason="${reason#SLSA verification failed: }"; reason="${reason%: }"
+      case "$reason" in
+        "no matching attestations"*) reason="no SLSA provenance attestation found for this image ($reason)" ;;
+        *"artifact hash does not match"*) reason="$reason (the provenance doesn't cover this file, or the file was modified)" ;;
+        *tuf*|*TUF*) reason="$reason (can the promotion pod reach tuf-repo-cdn.sigstore.dev?)" ;;
+      esac
+      [ -n "$reason" ] || reason="slsa-verifier failed with no message"
+      result false "$reason"
+      echo "Promotion blocked: $subject failed SLSA provenance verification: $reason" >&2
+      exit 1
+    fi
+
+    # --print-provenance prints one statement per verified attestation (or artifact); report the first.
+    jq -s '.[0]' /tmp/provenance.json > /tmp/statement.json
+    result true "" /tmp/statement.json
+    # slsa-verifier has no commit flag: its docs say to check the commit in the printed provenance.
+    commit="$(jq -r .commit "$out")"
+    if [ -n "$VERIFY_SOURCE_COMMIT" ] && [[ "$commit" != "$VERIFY_SOURCE_COMMIT"* ]]; then
+      reason="expected commit '$VERIFY_SOURCE_COMMIT', got '${commit:-none}'"
+      jq --arg e "$reason" '.verified = false | .error = $e' "$out" > /tmp/out.json && mv /tmp/out.json "$out"
+      echo "Promotion blocked: $subject failed SLSA provenance verification: $reason" >&2
+      exit 1
+    fi
+    grep -m1 '^Verified build' /tmp/verify.err || true
+    echo "Verified SLSA provenance of $subject: built from $(jq -r '.sourceRepo + " " + .ref' "$out")."
+  output:
+    source:
+      type: File
+      path: /tmp/slsa-verify.json

@@ -1,0 +1,13 @@
+description: provenance from a different commit than expected blocks the promotion
+config:
+  image: quay.io/argoproj/argocd@sha256:8e5cc5bb008df8a09dba439462e58c94c55b7735888d3ebde0c25fc05e4e5335
+  sourceUri: github.com/argoproj/argo-cd
+  sourceCommit: "1234567"
+expect:
+  status: Failed
+  output:
+    verified: false
+    commit: c2b1e3017e2cec86b122172e861dcd026453ae44
+    error: "expected commit '1234567', got 'c2b1e3017e2cec86b122172e861dcd026453ae44'"
+  messageContains:
+  - "failed SLSA provenance verification"

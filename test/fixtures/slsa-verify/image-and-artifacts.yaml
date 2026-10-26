@@ -1,0 +1,10 @@
+description: config.image and config.artifacts are mutually exclusive
+config:
+  image: quay.io/argoproj/argocd@sha256:8e5cc5bb008df8a09dba439462e58c94c55b7735888d3ebde0c25fc05e4e5335
+  artifacts: [release/sbom.tar.gz]
+  provenancePath: release/argocd-sbom.intoto.jsonl
+  sourceUri: github.com/argoproj/argo-cd
+expect:
+  status: Failed
+  messageContains:
+  - "set config.image or config.artifacts, not both"

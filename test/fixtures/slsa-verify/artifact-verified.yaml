@@ -1,0 +1,19 @@
+description: Argo CD's release SBOM verifies against its provenance file, source repository and release tag
+config:
+  artifacts: release/sbom.tar.gz
+  provenancePath: release/argocd-sbom.intoto.jsonl
+  sourceUri: github.com/argoproj/argo-cd
+  sourceTag: v3.5.6
+  sourceCommit: c2b1e3017e2cec86b122172e861dcd026453ae44
+files:
+  release: test/fixtures/slsa-verify/files/argocd-v3.5.6
+expect:
+  status: Succeeded
+  output:
+    verified: true
+    image: ""
+    artifacts: [release/sbom.tar.gz]
+    builderId: https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0
+    ref: refs/tags/v3.5.6
+    commit: c2b1e3017e2cec86b122172e861dcd026453ae44
+  outputKeys: [links]

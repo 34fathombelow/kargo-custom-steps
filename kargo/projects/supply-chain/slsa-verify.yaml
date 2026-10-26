@@ -1,0 +1,19 @@
+# Verifies the SLSA build provenance of one image from the Freight with the
+# slsa-verify custom step, pinned by digest. The image must be built from
+# vars.sourceUri at the same git tag as its image tag.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: PromotionTask
+metadata:
+  name: slsa-verify
+  namespace: custom-steps-supply-chain
+spec:
+  vars:
+  - name: imageRepo
+  - name: sourceUri
+  steps:
+  - uses: slsa-verify
+    as: provenance
+    config:
+      image: ${{ imageFrom(vars.imageRepo).RepoURL + "@" + imageFrom(vars.imageRepo).Digest }}
+      sourceUri: ${{ vars.sourceUri }}
+      sourceTag: ${{ imageFrom(vars.imageRepo).Tag }}

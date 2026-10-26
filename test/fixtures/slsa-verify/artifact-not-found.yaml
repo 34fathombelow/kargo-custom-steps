@@ -1,0 +1,9 @@
+description: an artifact that isn't in the workdir is reported
+config:
+  artifacts: [release/argocd-linux-amd64]
+  provenancePath: release/argocd-cli.intoto.jsonl
+  sourceUri: github.com/argoproj/argo-cd
+expect:
+  status: Failed
+  messageContains:
+  - "artifact release/argocd-linux-amd64 not found in the workdir"

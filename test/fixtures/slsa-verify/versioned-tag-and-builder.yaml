@@ -1,0 +1,11 @@
+description: a semver tag prefix and a trusted builder ID both match
+config:
+  image: quay.io/argoproj/argocd@sha256:8e5cc5bb008df8a09dba439462e58c94c55b7735888d3ebde0c25fc05e4e5335
+  sourceUri: https://github.com/argoproj/argo-cd
+  sourceVersionedTag: v3
+  builderId: https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml
+expect:
+  status: Succeeded
+  output:
+    verified: true
+    ref: refs/tags/v3.5.6

@@ -1,0 +1,10 @@
+description: an image built from a different repository than expected blocks the promotion
+config:
+  image: quay.io/argoproj/argocd@sha256:8e5cc5bb008df8a09dba439462e58c94c55b7735888d3ebde0c25fc05e4e5335
+  sourceUri: github.com/example/app
+expect:
+  status: Failed
+  output:
+    verified: false
+  messageContains:
+  - "expected source 'example/app', got 'argoproj/argo-cd'"

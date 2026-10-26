@@ -3,7 +3,9 @@
 #   alpine 3.24.2   - current; no fixable CRITICAL vulnerabilities  -> trivy-image-pass
 #   nginx 1.20.0    - from 2021; many CRITICAL vulnerabilities      -> trivy-image-blocked
 #   cosign v3.1.3   - keyless-signed by the Sigstore project       -> cosign-verify-pass
-#   node-exporter v1.9.1 - not signed with cosign                  -> cosign-verify-blocked
+#   argocd v3.5.6   - SLSA provenance from its release workflow   -> slsa-verify-pass
+#   node-exporter v1.9.1 - not signed with cosign, no SLSA provenance
+#                                     -> cosign-verify-blocked, slsa-verify-blocked
 #     (from quay.io directly: checking a mirror.gcr.io image for a signature
 #     makes the mirror query Docker Hub, which hits its quota)
 # Docker Hub images come from Google's mirror (mirror.gcr.io) to avoid anonymous pull limits.
@@ -37,4 +39,9 @@ spec:
       repoURL: quay.io/prometheus/node-exporter
       imageSelectionStrategy: SemVer
       constraint: "1.9.1"
+      discoveryLimit: 1
+  - image:
+      repoURL: quay.io/argoproj/argocd
+      imageSelectionStrategy: SemVer
+      constraint: "3.5.6"
       discoveryLimit: 1

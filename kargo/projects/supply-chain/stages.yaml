@@ -7,6 +7,9 @@
 # cosign-verify (custom step)
 #   cosign-verify-pass     cosign v3.1.3         -> signed by the Sigstore project, passes
 #   cosign-verify-blocked  node-exporter v1.9.1  -> not signed with cosign, blocked
+# slsa-verify (custom step)
+#   slsa-verify-pass       argocd v3.5.6         -> SLSA provenance from argoproj/argo-cd at tag v3.5.6, passes
+#   slsa-verify-blocked    node-exporter v1.9.1  -> no SLSA provenance, blocked
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
 metadata:
@@ -118,3 +121,59 @@ spec:
           value: keyless@projectsigstore.iam.gserviceaccount.com
         - name: issuer
           value: https://accounts.google.com
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: slsa-verify-pass
+  namespace: custom-steps-supply-chain
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: green
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: images
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: slsa-verify
+        vars:
+        - name: imageRepo
+          value: quay.io/argoproj/argocd
+        - name: sourceUri
+          value: github.com/argoproj/argo-cd
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: slsa-verify-blocked
+  namespace: custom-steps-supply-chain
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: red
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: images
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: slsa-verify
+        vars:
+        - name: imageRepo
+          value: quay.io/prometheus/node-exporter
+        - name: sourceUri
+          value: github.com/prometheus/node_exporter

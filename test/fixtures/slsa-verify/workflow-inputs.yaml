@@ -1,0 +1,12 @@
+description: expected workflow_dispatch inputs block an image built on a push
+config:
+  image: quay.io/argoproj/argocd@sha256:8e5cc5bb008df8a09dba439462e58c94c55b7735888d3ebde0c25fc05e4e5335
+  sourceUri: github.com/argoproj/argo-cd
+  buildWorkflowInputs:
+    release: "true"
+    version: 3.5
+expect:
+  status: Failed
+  output:
+    verified: false
+    error: "workflow input does not match: expected 'workflow_dispatch' trigger, got push"

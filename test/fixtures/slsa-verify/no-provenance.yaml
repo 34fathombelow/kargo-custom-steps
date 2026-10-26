@@ -1,0 +1,12 @@
+description: an image without SLSA provenance blocks the promotion
+config:
+  image: quay.io/prometheus/node-exporter@sha256:d00a542e409ee618a4edc67da14dd48c5da66726bbd5537ab2af9c1dfc442c8a
+  sourceUri: github.com/prometheus/node_exporter
+expect:
+  status: Failed
+  output:
+    verified: false
+    builderId: ""
+    links: []
+  messageContains:
+  - "no SLSA provenance attestation found"

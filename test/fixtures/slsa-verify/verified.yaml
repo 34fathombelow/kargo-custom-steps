@@ -1,0 +1,19 @@
+description: Argo CD's release image verifies against its source repository and release tag
+config:
+  image: quay.io/argoproj/argocd@sha256:8e5cc5bb008df8a09dba439462e58c94c55b7735888d3ebde0c25fc05e4e5335
+  sourceUri: github.com/argoproj/argo-cd
+  sourceTag: v3.5.6
+expect:
+  status: Succeeded
+  output:
+    verified: true
+    digest: sha256:8e5cc5bb008df8a09dba439462e58c94c55b7735888d3ebde0c25fc05e4e5335
+    sourceRepo: https://github.com/argoproj/argo-cd
+    ref: refs/tags/v3.5.6
+    commit: c2b1e3017e2cec86b122172e861dcd026453ae44
+    workflow: .github/workflows/release.yaml
+    builderId: https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@refs/tags/v2.1.0
+    error: ""
+  outputKeys: [links]
+  messageContains:
+  - "Verified SLSA provenance"
