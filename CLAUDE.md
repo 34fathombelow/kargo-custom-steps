@@ -1,8 +1,8 @@
 # kargo-custom-steps
 
 A catalogue of Kargo Enterprise **custom promotion steps** (`CustomPromotionStep`), each with its own image, test
-fixtures and a runnable demo project. Read the [README](README.md) first: Prerequisites, Running the demos, Examples,
-and Contributing → Adding a step.
+fixtures and a runnable demo project. Read the [README](README.md) first (Prerequisites, Running the demos, Examples),
+then [CONTRIBUTING.md](CONTRIBUTING.md) for writing, testing and adding a step.
 
 To build a new step, use the **`new-custom-step`** skill. To write fixtures or debug a failing step, use
 **`test-custom-step`**.
@@ -138,7 +138,7 @@ Learned the hard way while building these steps:
 - **Argo CD cluster names:** `kargo1` (Kargo control plane), `custom-steps-agent` (the cluster where the Kargo agent
   `custom-steps` runs and promotion pods run), and `in-cluster` (Argo CD itself). `scripts/fork.sh` rewrites them, the
   repo URL, the image registry and the shard; don't hard-code a new owner-specific value anywhere it can't find.
-- The README's **More custom steps to build** table lists ideas. Move a step out when it's built; add new ideas there.
+- CONTRIBUTING.md's **More custom steps to build** table lists ideas. Move a step out when it's built; add new ideas there.
 - `.github/workflows/README.md` explains every workflow; update it with any workflow change.
 - The repo is public: no private or internal references, no personal names in step output, no mentions of other
   people's example repositories.

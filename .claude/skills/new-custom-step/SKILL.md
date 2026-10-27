@@ -6,7 +6,8 @@ description: Build a new Kargo custom promotion step (CustomPromotionStep) in th
 # New custom step
 
 Build the step the way every step in this repo is built, so `make check` passes and the demo works on a cluster.
-Read `CLAUDE.md` first: its templating rules and decisions apply to every line you write.
+Read `CLAUDE.md` first: its templating rules and decisions apply to every line you write. This skill follows the
+**Adding a step** checklist in `CONTRIBUTING.md`.
 
 ## 1. Decide what to build
 
@@ -59,8 +60,8 @@ fixture per input check. Run `make test STEP=<step>` until it passes.
 3. Add the step to the `runs` map in `scripts/example-outputs.sh` (`[<step>]="Passes:<fixture> Blocked:<fixture>"`), then
    run `scripts/example-outputs.sh <step>` for the "Example output" section.
 4. In the top-level `README.md`: link the step to its README in its group's row of the **Examples** table (a new
-   group gets a row, with a one-line "What it's for"). Remove the step from **More custom steps to build** if it was
-   listed.
+   group gets a row, with a one-line "What it's for"). Remove the step from **More custom steps to build** in
+   `CONTRIBUTING.md` if it was listed.
 
 ## 6. Demo
 
