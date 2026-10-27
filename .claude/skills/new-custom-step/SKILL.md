@@ -58,9 +58,9 @@ fixture per input check. Run `make test STEP=<step>` until it passes.
 2. `make step-images` adds the generated "Image" section.
 3. Add the step to the `runs` map in `scripts/example-outputs.sh` (`[<step>]="Passes:<fixture> Blocked:<fixture>"`), then
    run `scripts/example-outputs.sh <step>` for the "Example output" section.
-4. In the top-level `README.md`: a `#### <step>` section under its group in **Examples** (what it does, a one-line
-   **Prerequisites:** summary, a short config example, links to the step and its README). Remove the step from
-   **More custom steps to build** if it was listed.
+4. In the top-level `README.md`: link the step to its README in its group's row of the **Examples** table (a new
+   group gets a row, with a one-line "What it's for"). Remove the step from **More custom steps to build** if it was
+   listed.
 
 ## 6. Demo
 

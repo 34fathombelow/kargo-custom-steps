@@ -131,7 +131,7 @@ Learned the hard way while building these steps:
 - **Gates** exit non-zero to block and still write structured output explaining the decision. Every failure names the
   missing prerequisite or bad input, not a raw tool error.
 - **Prerequisites** (cluster add-ons and which cluster, reachable services, accounts, capabilities, egress, inputs) go in
-  the step README's table and in a one-line summary in the top-level README's Examples section.
+  the step README's table. The top-level README's Examples table links every step to its README.
 - **Generated README sections**, never edited by hand: "Image" (`make step-images`) and "Example output"
   (`scripts/example-outputs.sh`, which needs the step in its `runs` map). `make lint` fails when either is missing or
   stale.
