@@ -68,6 +68,12 @@ validate: ## Validate kargo/ against the Kargo CRD schemas (offline; KARGO_VERSI
 .PHONY: check
 check: lint validate test ## lint + validate + test
 
+##@ Release
+
+.PHONY: release-assets
+release-assets: ## Build the release assets into dist/, as release.yaml does (VERSION=<tag> for its links)
+	scripts/release-assets.sh $(VERSION)
+
 ##@ Fork settings
 
 .PHONY: set-shard

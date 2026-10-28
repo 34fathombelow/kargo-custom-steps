@@ -194,6 +194,10 @@ demo Stages, and an **Example output** section with the real output of a passing
 | [Data](kargo/custom-steps/data) | Move the database with the release: schema migrations applied during promotion, safe to retry and roll back | [`flyway-migrate`](kargo/custom-steps/data/flyway-migrate/README.md) | [`custom-steps-data`](kargo/projects/data) |
 | [Rendering](kargo/custom-steps/rendering) | Render manifests with tools Kargo doesn't ship, into the workdir for later steps | [`jsonnet-render`](kargo/custom-steps/rendering/jsonnet-render/README.md) | [`custom-steps-rendering`](kargo/projects/rendering) |
 
+To use the steps without the demos, download `kargo-custom-steps.yaml` from a
+[release](https://github.com/34fathombelow/kargo-custom-steps/releases) (every step in one file) and add it, or just the
+steps you want, to the git repository that Argo CD syncs into your Kargo control plane.
+
 ## Build your own and contributing
 
 Want a step for your own tool, or to add one here? [CONTRIBUTING.md](CONTRIBUTING.md) covers what to check before you write
@@ -213,7 +217,7 @@ walk it through the same work.
 | [`docker/<tool>/`](docker) | Step images, built and published to `ghcr.io/34fathombelow` by GitHub Actions |
 | [`demo-fixtures/`](demo-fixtures) | Inputs the demos and tests read: manifests, Kyverno and OPA policies (`policies/`), migrations, jsonnet |
 | [`test/`](test) | The local step harness (`cmd/runstep`), the lint tool (`cmd/lint`) and each step's fixtures |
-| [`scripts/`](scripts) | `fork.sh`, and the generators for the README sections (`example-outputs.sh`, `step-images.sh`) |
+| [`scripts/`](scripts) | `fork.sh`, the generators for the README sections (`example-outputs.sh`, `step-images.sh`), and `release-assets.sh` |
 | [`.github/workflows/`](.github/workflows) | CI: checks, image builds, releases ([what each does](.github/workflows/README.md)) |
 | [`docs/images/`](docs/images) | The logo |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Writing, testing and adding a step, and ideas for new ones |

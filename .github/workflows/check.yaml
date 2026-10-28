@@ -24,6 +24,7 @@ jobs:
     - run: make lint
     - run: make validate
     - run: helm lint demo-fixtures/manifest-diff/chart
+    - run: make release-assets
 
   test:
     runs-on: ubuntu-latest

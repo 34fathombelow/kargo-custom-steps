@@ -7,7 +7,7 @@ every third-party action is pinned to a commit SHA (Renovate keeps the pins curr
 |---|---|---|
 | [check.yaml](check.yaml) | Every pull request; pushes to `main` | Lints the repository and runs every step's tests |
 | [images.yaml](images.yaml) | Changes under `docker/`; by hand | Builds the step images, and on `main` publishes, attests and signs them |
-| [release.yaml](release.yaml) | Pushing a `v*` tag | Publishes the custom steps as GitHub Release assets, pinned to image digests |
+| [release.yaml](release.yaml) | Pushing a `v*` tag | Publishes the custom steps as a GitHub Release |
 
 ## check.yaml
 
@@ -19,6 +19,7 @@ Two jobs, both required to pass before merging:
     names a real step; every step has a README and tests.
   - `make validate` checks every Kargo resource under `kargo/` against the Kargo CRD schemas, offline.
   - `helm lint` checks the small chart the `manifest-diff` demo renders.
+  - `make release-assets` builds the release assets, so a broken build shows up on the PR, not on a tag.
 - **test**
   - Builds every image in `docker/` locally, without pushing.
   - Starts the services some fixtures call (`make test-services`): a throwaway Postgres for `flyway-migrate` and a fake
@@ -50,10 +51,16 @@ fails until you do.
 
 ## release.yaml
 
-On a `v*` tag (e.g. `git tag v1.0.0 && git push origin v1.0.0`):
+On a `v*` tag (e.g. `git tag v1.0.0 && git push origin v1.0.0`), it runs `make release-assets` and publishes a GitHub
+Release with:
 
-1. Resolves every step's image to its digest and writes a copy of each step with `image: <image>@sha256:...`.
-2. Attaches them to a GitHub Release: one `<step>.yaml` per step, plus `kargo-custom-steps.yaml` with all of them.
+- `kargo-custom-steps.yaml`: every step in one file, for users
+- `kargo-custom-steps-docs.tar.gz`: every step's README, at `kargo/custom-steps/<group>/<step>/README.md`, for the Kargo
+  docs to build their Enterprise Custom Steps pages from. The generator markers (HTML comments) are removed, so each
+  README compiles as MDX, and relative links point to the files on GitHub at the release tag
+
+Run `make release-assets` to build the same files locally, in `dist/` (links point to `main`; add `VERSION=v1.2.3` for a
+tag's).
 
 The images must already be published (by images.yaml) before you tag. To use a release, copy the YAML into the git
 repository your Argo CD syncs into Kargo.

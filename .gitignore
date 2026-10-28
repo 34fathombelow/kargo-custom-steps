@@ -4,6 +4,9 @@ CLAUDE.local.md
 
 # Local step test runs
 .work/
+
+# Release assets built locally (make release-assets)
+dist/
 .env
 
 # OS / editor

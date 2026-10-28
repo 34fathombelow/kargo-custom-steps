@@ -18,6 +18,7 @@ scripts/example-outputs.sh <step>   # regenerate a step README's "Example output
 make lint                     # repository conventions
 make validate                 # Kargo CRD schemas (offline)
 make check                    # lint + validate + test: what CI runs
+make release-assets           # build the release assets into dist/
 make test-services-down
 ```
 
@@ -132,6 +133,8 @@ Learned the hard way while building these steps:
   missing prerequisite or bad input, not a raw tool error.
 - **Prerequisites** (cluster add-ons and which cluster, reachable services, accounts, capabilities, egress, inputs) go in
   the step README's table. The top-level README's Examples table links every step to its README.
+- Each release ships the step READMEs for the Kargo docs, which build pages from them (as MDX), so a README uses no HTML
+  outside comments and no `{ } <` outside code, and its first paragraph works as a one-line summary of the step.
 - **Generated README sections**, never edited by hand: "Image" (`make step-images`) and "Example output"
   (`scripts/example-outputs.sh`, which needs the step in its `runs` map). `make lint` fails when either is missing or
   stale.
@@ -160,3 +163,5 @@ Each one was made for a reason; don't undo it without a new one.
 | **Demo images avoid rate-limited paths** (Docker Hub images via `mirror.gcr.io`; the unsigned-image demo uses quay.io) | Shared CI runners hit anonymous pull limits |
 | **Neutral demo subjects.** Negative examples (unsigned, vulnerable) use old releases or widely known images, pinned to one version | A "blocked" demo shows the step working; it shouldn't read as a statement about anyone's product |
 | **Each group has one demo project**, synced by one Argo CD app | Users pick groups with `directory.include`/`exclude`; prerequisites are separate apps |
+| **Releases don't pin images to digests**; steps reference images by tag, as in git | Keeps a release identical to the repo at its tag |
+| **The Kargo docs get only the step READMEs** (`make release-assets`: comments stripped, links made absolute). Grouping, frontmatter, card text and layout are done on the Kargo side | Keeps this repo free of docs tooling and of assumptions about how the Kargo docs are built |
