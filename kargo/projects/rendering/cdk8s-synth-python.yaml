@@ -1,0 +1,46 @@
+# Renders the Python demo cdk8s app with the cdk8s-synth-python custom step, with the
+# Freight's guestbook image passed in through config.env, then reads the image
+# and replica count back out of the rendered Deployment to show the files are
+# ordinary YAML that any later step can work with.
+#
+# appPath picks the app: the blocked Stage points it at a copy with a type
+# error, so the render fails and blocks the promotion.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: PromotionTask
+metadata:
+  name: cdk8s-synth-python
+  namespace: custom-steps-rendering
+spec:
+  vars:
+  - name: repoURL
+    value: https://github.com/34fathombelow/kargo-custom-steps.git
+  - name: image
+    value: ghcr.io/akuity/guestbook
+  - name: appPath
+    value: ./src/demo-fixtures/cdk8s-synth/python
+  steps:
+  - uses: git-clone
+    config:
+      repoURL: ${{ vars.repoURL }}
+      checkout:
+      - branch: main
+        path: ./src
+  - uses: cdk8s-synth-python
+    as: render
+    config:
+      path: ${{ vars.appPath }}
+      outPath: ./out
+      env:
+        ENVIRONMENT: prod
+        IMAGE: ${{ vars.image }}:${{ imageFrom(vars.image).Tag }}
+  # yaml-parse reads the first document of the chart's file: the Deployment,
+  # which the app creates before the Service.
+  - uses: yaml-parse
+    as: rendered
+    config:
+      path: ./out/guestbook.k8s.yaml
+      outputs:
+      - name: image
+        fromExpression: spec.template.spec.containers[0].image
+      - name: replicas
+        fromExpression: spec.replicas

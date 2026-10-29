@@ -25,6 +25,9 @@ declare -A runs=(
   [argocd-drift-check]="Passes:synced-healthy Blocked:out-of-sync"
   [flyway-migrate]="Migrates:01-migrate Rollback:03-rollback"
   [jsonnet-render]="Renders:render-dir"
+  [cdk8s-synth]="Renders:render Blocked:type-error"
+  [cdk8s-synth-python]="Renders:render Blocked:type-error"
+  [cdk8s-synth-go]="Renders:render Blocked:type-error"
 )
 # flyway-migrate's fixtures share a database and run in order: a fresh test
 # database is started first, then 01 (migrate) and 03 (rollback of the same DB).

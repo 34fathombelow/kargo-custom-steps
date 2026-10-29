@@ -1,0 +1,10 @@
+description: a directory without cdk8s.yaml is rejected before installing anything
+config:
+  path: ./src
+  outPath: ./out
+files:
+  src: demo-fixtures/jsonnet-render
+expect:
+  status: Failed
+  messageContains:
+  - "./src has no cdk8s.yaml"

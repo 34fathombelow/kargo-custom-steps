@@ -1,0 +1,12 @@
+description: a go app is pointed at the step for its language
+config:
+  path: ./src/go
+  outPath: ./out
+files:
+  src: demo-fixtures/cdk8s-synth
+expect:
+  status: Failed
+  messageContains:
+  - "./src/go is a go cdk8s app; use the cdk8s-synth-go step"
+  output:
+    language: go

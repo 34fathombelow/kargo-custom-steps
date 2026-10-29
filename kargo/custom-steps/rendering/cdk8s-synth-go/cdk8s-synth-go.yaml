@@ -1,0 +1,119 @@
+# CustomPromotionStep: cdk8s-synth-go
+#
+# Synthesizes Kubernetes YAML from a Go cdk8s app in the promotion
+# workdir, the way the built-in helm-template and kustomize-build steps do for
+# Helm and Kustomize. Later steps (a policy gate, manifest-diff, ...) use the
+# rendered files. cdk8s-synth, cdk8s-synth-python and cdk8s-synth-go are the
+# same step for TypeScript, Python and Go apps, each with its own image.
+#
+# Config:
+#   path     - workdir-relative app directory containing cdk8s.yaml (language:
+#              go) and go.sum (e.g. ./src/deploy/cdk8s)
+#   outPath  - workdir-relative directory to write to (one <chart>.k8s.yaml per
+#              chart). Replaced if it exists.
+#   env      - map of environment variables for the app, e.g.
+#              {ENVIRONMENT: prod}, so one app can render per-Stage settings
+#
+# Output (JSON): language, outPath, count, files[], resources[{kind, name, namespace}], error
+apiVersion: ee.kargo.akuity.io/v1alpha1
+kind: CustomPromotionStep
+metadata:
+  name: cdk8s-synth-go
+spec:
+  image: ghcr.io/34fathombelow/cdk8s-go:2.207.73
+  # Downloading modules and compiling dominate the run time.
+  defaultTimeout: 10m
+  defaultErrorThreshold: 1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
+  env:
+  - name: APP_PATH
+    value: ${{ quote(config.path ?? "") }}
+  - name: OUT_PATH
+    value: ${{ quote(config.outPath ?? "") }}
+  - name: APP_ENV
+    value: ${{ asJSON(config.env ?? {}) }}
+  command:
+  - bash
+  - -c
+  - |
+    set -euo pipefail
+    trap 'echo "cdk8s-synth-go: unexpected error on line $LINENO" >&2' ERR
+    out=/tmp/cdk8s-synth-go.json
+    language=""
+    fail() {
+      echo "cdk8s-synth-go: $*" >&2
+      jq -n --arg language "$language" --arg outPath "$OUT_PATH" --arg error "$*" \
+        '{language: $language, outPath: $outPath, count: 0, files: [], resources: [], error: $error}' > "$out"
+      exit 1
+    }
+
+    [ -n "$APP_PATH" ] || fail "config.path is required (the cdk8s app directory)"
+    [ -d "$APP_PATH" ] || fail "config.path $APP_PATH not found in the workdir (did an earlier git-clone step check it out?)"
+    [ -f "$APP_PATH/cdk8s.yaml" ] || fail "$APP_PATH has no cdk8s.yaml; config.path must point at a cdk8s app"
+    language="$(yq -r '.language // ""' "$APP_PATH/cdk8s.yaml" 2>/dev/null)" || fail "$APP_PATH/cdk8s.yaml is not valid YAML"
+    case "$language" in
+      go) ;;
+      typescript) fail "$APP_PATH is a typescript cdk8s app; use the cdk8s-synth step" ;;
+      python) fail "$APP_PATH is a python cdk8s app; use the cdk8s-synth-python step" ;;
+      "") fail "$APP_PATH/cdk8s.yaml has no language" ;;
+      *) fail "language $language (from $APP_PATH/cdk8s.yaml) is not supported; the cdk8s-synth steps support typescript, python and go" ;;
+    esac
+    [ -f "$APP_PATH/go.sum" ] || fail "$APP_PATH has no go.sum; commit it so installs are reproducible"
+    [ -n "$OUT_PATH" ] || fail "config.outPath is required (a directory)"
+    case "$OUT_PATH" in
+      /*|.|./|..|../*|*/..|*/../*) fail "config.outPath must be a directory inside the workdir, got $OUT_PATH" ;;
+    esac
+    # asJSON() output ends with a newline; normalize to compact JSON.
+    app_env="$(jq -c 'if type == "object" then . else error end' <<<"$APP_ENV" 2>/dev/null)" || fail "config.env must be a map"
+
+    # Export config.env for the app. Values are never evaluated by a shell.
+    while IFS= read -r -d '' k && IFS= read -r -d '' v; do
+      [[ "$k" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || fail "config.env key '$k' is not a valid environment variable name"
+      export "$k=$v"
+    done < <(jq -j 'to_entries[] | .key, "\u0000", (.value | tostring), "\u0000"' <<<"$app_env")
+
+    rel="${OUT_PATH#./}"
+    out_dir="$PWD/${rel%/}"
+    rm -rf "$out_dir"
+
+    cd "$APP_PATH"
+    go mod download >&2 || fail "go mod download failed in $APP_PATH (it needs egress to the Go module proxy; see the log above)"
+    if ! cdk8s synth --output "$out_dir" > /tmp/synth.log 2>&1; then
+      # Show the error without Node's stack frames.
+      grep -vE '^[[:space:]]+at |^[[:space:]]*(return new TSError|\^)' /tmp/synth.log >&2 || true
+      # The first compiler error.
+      reason="$(grep -m1 -E '\.go:[0-9]+:[0-9]+: ' /tmp/synth.log | sed 's|^\./||' || true)"
+      [ -n "$reason" ] || reason="$(grep -v '^[[:space:]]*$' /tmp/synth.log | tail -1 || true)"
+      fail "cdk8s synth failed in $APP_PATH: ${reason:-see the log above}"
+    fi
+    cat /tmp/synth.log
+    cd - > /dev/null
+
+    files=()
+    while IFS= read -r -d '' f; do files+=("${f#"$PWD"/}"); done \
+      < <(find "$out_dir" -type f \( -name '*.yaml' -o -name '*.yml' \) -print0 | sort -z)
+    [ "${#files[@]}" -gt 0 ] || fail "cdk8s synth wrote no manifests to $OUT_PATH"
+
+    yq ea -o json -I 0 'select(. != null)' "${files[@]}" | jq -s . > /tmp/manifests.json \
+      || fail "the rendered files in $OUT_PATH are not valid YAML"
+    count="$(jq 'length' /tmp/manifests.json)"
+    [ "$count" -gt 0 ] || fail "$APP_PATH rendered no Kubernetes objects"
+
+    printf '%s\0' "${files[@]}" | jq -Rs --arg language "$language" --arg outPath "$OUT_PATH" --slurpfile m /tmp/manifests.json '
+      {language: $language,
+       outPath: $outPath,
+       count: ($m[0] | length),
+       files: (split("\u0000") | map(select(. != ""))),
+       resources: ($m[0] | map({kind, name: .metadata.name, namespace: (.metadata.namespace // "")})),
+       error: ""}' > "$out"
+    echo "Rendered $count object(s) from the go app in $APP_PATH into $OUT_PATH:"
+    jq -r '.resources[] | "  \(.kind)/\(.name)"' "$out"
+  output:
+    source:
+      type: File
+      path: /tmp/cdk8s-synth-go.json

@@ -434,8 +434,8 @@ var cliCommand = regexp.MustCompile(
 	`\bkubectl\s+(apply|create|delete|patch|scale|get|edit|exec|rollout|config|label|annotate|replace|run|cp|logs|wait|port-forward|-n|--)` +
 		`|\bkargo\s+(promote|apply|create|delete|login|get|update|approve|refresh|verify)\b`)
 
-// Local working files that are never published.
-var cliCheckSkip = map[string]bool{".git": true, ".work": true, ".claude": true, "CLAUDE.md": true, "PLAN.md": true}
+// Local working files that are never published, and third-party dependencies.
+var cliCheckSkip = map[string]bool{".git": true, ".work": true, ".claude": true, "CLAUDE.md": true, "PLAN.md": true, "node_modules": true}
 
 func (l *linter) checkNoCLI() error {
 	return filepath.WalkDir(l.repo, func(p string, d fs.DirEntry, err error) error {
@@ -449,6 +449,12 @@ func (l *linter) checkNoCLI() error {
 			return nil
 		}
 		if d.IsDir() {
+			// cdk8s's generated imports/ (next to cdk8s.yaml) quote upstream API docs, which mention kubectl.
+			if d.Name() == "imports" {
+				if _, err := os.Stat(filepath.Join(filepath.Dir(p), "cdk8s.yaml")); err == nil {
+					return filepath.SkipDir
+				}
+			}
 			return nil
 		}
 		data, err := os.ReadFile(p)

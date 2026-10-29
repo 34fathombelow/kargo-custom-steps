@@ -1,0 +1,15 @@
+description: a Python app that passes a wrong type raises a TypeError, which blocks the promotion and is surfaced with its line
+config:
+  path: ./src/python-broken
+  outPath: ./out
+files:
+  src: demo-fixtures/cdk8s-synth
+expect:
+  status: Failed
+  messageContains:
+  - "cdk8s synth failed in ./src/python-broken: main.py:"
+  - "TypeError: type of argument replicas must be one of (int, float, NoneType); got str instead"
+  output:
+    language: python
+    count: 0
+    resources: []

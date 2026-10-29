@@ -1,0 +1,14 @@
+description: a TypeScript compile error blocks the promotion and is surfaced as the reason
+config:
+  path: ./src/typescript-broken
+  outPath: ./out
+files:
+  src: demo-fixtures/cdk8s-synth
+expect:
+  status: Failed
+  messageContains:
+  - "cdk8s synth failed in ./src/typescript-broken"
+  - "error TS2322: Type 'string' is not assignable to type 'number'"
+  output:
+    count: 0
+    resources: []
