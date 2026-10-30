@@ -9,6 +9,10 @@
 # argocd-drift-check-pass     Argo CD app that is Synced + Healthy          -> passes
 # argocd-drift-check-blocked  Argo CD app that was never synced (OutOfSync) -> blocked
 #                             (both need prereqs/argocd-drift-check)
+# sentry-release-pass         records release guestbook@<tag> and a deploy to
+#                             this Stage in Sentry                          -> passes
+# sentry-release-blocked      the same with a Sentry project that doesn't exist -> fails
+#                             (both need the `sentry` secret, see secrets/README.md)
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
 metadata:
@@ -130,3 +134,52 @@ spec:
         vars:
         - name: app
           value: drift-demo-unsynced
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: sentry-release-pass
+  namespace: custom-steps-release-insight
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: green
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: guestbook
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: sentry-release
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: sentry-release-blocked
+  namespace: custom-steps-release-insight
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: red
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: guestbook
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: sentry-release
+        vars:
+        - name: project
+          value: does-not-exist

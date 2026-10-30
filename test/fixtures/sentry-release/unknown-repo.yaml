@@ -1,0 +1,18 @@
+description: linking commits from a repository that isn't connected in Sentry says how to fix it
+config:
+  authToken: test-token
+  org: acme
+  project: guestbook
+  version: guestbook@1.3.0
+  url: http://fake-sentry:8000
+  repo: other/repo
+  to: "2222222"
+docker: ["--network", "runstep-sentry"]
+expect:
+  status: Failed
+  messageContains:
+  - "check that repository other/repo is connected in Sentry (Settings > Integrations), or leave config.repo empty"
+  output:
+    # The release was created before linking failed, so the link to it is kept.
+    created: true
+    deployId: ""

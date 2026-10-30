@@ -107,7 +107,6 @@ Ideas for custom steps that would fit here, by group. Contributions welcome: see
 | rendering | `envsubst-render` | Render templates with [gomplate](https://gomplate.ca) or `envsubst` |
 | rendering | `sops-decrypt` | Decrypt [SOPS](https://getsops.io) files (age or KMS) during rendering |
 | rendering | `dockerfile-update` | Set a Dockerfile's `ARG` defaults and `FROM` tags/digests from Freight (e.g. a new base image), in the workdir. Kargo's `yaml-update` and image steps don't handle Dockerfiles. The output shows the diff |
-| release-insight | `sentry-release` | Create a [Sentry](https://sentry.io) release and associate its commits with `sentry-cli` |
 
 Before adding one, check that Kargo doesn't already do it (see [Before you write a custom step](#before-you-write-a-custom-step)).
 

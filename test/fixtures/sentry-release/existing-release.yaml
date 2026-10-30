@@ -1,0 +1,17 @@
+description: promoting a version that already has a release (e.g. to the next Stage) only records a new deploy
+config:
+  authToken: test-token
+  org: acme
+  project: guestbook
+  version: guestbook@1.0.0
+  environment: prod
+  url: http://fake-sentry:8000
+docker: ["--network", "runstep-sentry"]
+expect:
+  status: Succeeded
+  output:
+    version: guestbook@1.0.0
+    environment: prod
+    created: false
+    deployId: "206107279"
+    error: ""

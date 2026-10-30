@@ -1,0 +1,9 @@
+description: a missing auth token is rejected before calling Sentry
+config:
+  org: acme
+  project: guestbook
+  version: guestbook@1.3.0
+expect:
+  status: Failed
+  messageContains:
+  - "config.authToken is required"

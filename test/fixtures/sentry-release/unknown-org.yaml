@@ -1,0 +1,16 @@
+description: an organization that doesn't exist is named
+config:
+  authToken: test-token
+  org: other
+  project: guestbook
+  version: guestbook@1.3.0
+  url: http://fake-sentry:8000
+docker: ["--network", "runstep-sentry"]
+expect:
+  status: Failed
+  messageContains:
+  - "creating release: Sentry organization other not found (404)"
+  output:
+    created: false
+    deployId: ""
+    links: []

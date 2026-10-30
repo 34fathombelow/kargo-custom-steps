@@ -44,14 +44,16 @@ test: ## Run step fixtures with the local harness (all, or STEP=<step>)
 	done; exit $$fail
 
 .PHONY: test-services
-test-services: ## Start the services some fixtures call (flyway-migrate's Postgres, cluster-version's fake Argo CD metrics)
+test-services: ## Start the services some fixtures call (flyway-migrate's Postgres, cluster-version's fake Argo CD metrics, sentry-release's fake Sentry)
 	test/fixtures/flyway-migrate/test-db.sh
 	test/fixtures/cluster-version/fake-api.sh
+	test/fixtures/sentry-release/fake-api.sh
 
 .PHONY: test-services-down
 test-services-down: ## Remove the fixture services
 	test/fixtures/flyway-migrate/test-db.sh down
 	test/fixtures/cluster-version/fake-api.sh down
+	test/fixtures/sentry-release/fake-api.sh down
 
 .PHONY: step-images
 step-images: ## Refresh the "Image" section of every step README from its Dockerfile
