@@ -12,10 +12,17 @@ expect:
   status: Succeeded
   output:
     version: guestbook@1.1.0
+    org: acme
+    project: guestbook
     environment: staging
     created: true
+    repo: ""
+    commit: ""
+    previousCommit: ""
     commits: 0
+    deployName: test-promotion
     deployId: "190437991"
     links:
     - {url: "http://fake-sentry:8000/organizations/acme/explore/releases/guestbook%401.1.0/?project=4512342186066000", label: Release in Sentry}
     error: ""
+  outputKeys: [dateReleased]

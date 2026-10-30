@@ -24,7 +24,8 @@
 # The deploy is named after the promotion, so a retried promotion replaces its
 # deploy instead of adding a second one.
 #
-# Output (JSON): version, environment, created, commits, deployId, links, error
+# Output (JSON): version, org, project, environment, created, dateReleased, repo,
+#   commit, previousCommit, commits, deployName, deployId, links, error
 apiVersion: ee.kargo.akuity.io/v1alpha1
 kind: CustomPromotionStep
 metadata:
@@ -71,12 +72,16 @@ spec:
     out=/tmp/sentry-release.json
     version="$(jq -j . <<<"$SR_VERSION")"
     token="$(jq -j . <<<"$SR_TOKEN")"
-    created=false commits=0 deploy_id="" link=""
+    created=false commits=0 deploy_id="" link="" released=""
     write() {
-      jq -n --arg version "$version" --arg environment "$SR_ENVIRONMENT" --argjson created "$created" \
-        --argjson commits "$commits" --arg deployId "$deploy_id" --arg link "$link" --arg error "$1" '
-        {version: $version, environment: $environment, created: $created, commits: $commits,
-         deployId: $deployId, links: (if $link != "" then [{url: $link, label: "Release in Sentry"}] else [] end),
+      jq -n --arg version "$version" --arg org "$SR_ORG" --arg project "$SR_PROJECT" \
+        --arg environment "$SR_ENVIRONMENT" --argjson created "$created" --arg dateReleased "$released" \
+        --arg repo "$SR_REPO" --arg commit "$SR_TO" --arg previousCommit "$SR_FROM" --argjson commits "$commits" \
+        --arg deployName "$SR_DEPLOY_NAME" --arg deployId "$deploy_id" --arg link "$link" --arg error "$1" '
+        {version: $version, org: $org, project: $project, environment: $environment, created: $created,
+         dateReleased: $dateReleased, repo: $repo, commit: $commit, previousCommit: $previousCommit,
+         commits: $commits, deployName: $deployName, deployId: $deployId,
+         links: (if $link != "" then [{url: $link, label: "Release in Sentry"}] else [] end),
          error: $error}' > "$out"
     }
     fail() { echo "sentry-release: $*" >&2; write "$*"; exit 1; }
@@ -147,6 +152,7 @@ spec:
       status="$(call PUT "/releases/$v_enc/" "$(jq -cn --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{dateReleased: $now}')")"
       [ "$status" = 200 ] || fail "$(explain "finalizing release" "$status")"
       commits="$(jq '.commitCount // 0' /tmp/sentry-response.json)"
+      released="$(jq -r '.dateReleased // ""' /tmp/sentry-response.json)"
     fi
 
     # 4. Record the deploy. Sentry replaces a deploy with the same name and

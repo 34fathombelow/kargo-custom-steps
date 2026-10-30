@@ -73,9 +73,13 @@ The deploy is named after the promotion, so a retried promotion replaces its dep
 | Key | Type | Description |
 |---|---|---|
 | `version` | string | The release |
+| `org`, `project` | string | The Sentry organization and project |
 | `environment` | string | The environment the deploy was recorded to |
 | `created` | bool | Whether this promotion created the release (false when it already existed, e.g. from an earlier Stage) |
+| `dateReleased` | string | When the release was finalized (RFC 3339); empty with `finalize: false` |
+| `repo`, `commit`, `previousCommit` | string | The repository and commit range from the config; empty when commits aren't linked |
 | `commits` | number | Commits linked to the release |
+| `deployName` | string | The deploy's name: the promotion's, so a retry replaces the same deploy |
 | `deployId` | string | Sentry's id for the deploy |
 | `links` | list | The release's page in Sentry, shown as a link on the step |
 | `error` | string | Why the step failed, e.g. a rejected token or an unknown project; empty on success |
@@ -119,9 +123,12 @@ the same output in the Kargo UI. Long lists and strings are trimmed here.
 
 ```json
 {
+  "commit": "",
   "commits": 0,
   "created": true,
+  "dateReleased": "2026-10-30T10:13:54Z",
   "deployId": "190437991",
+  "deployName": "test-promotion",
   "environment": "staging",
   "error": "",
   "links": [
@@ -130,6 +137,10 @@ the same output in the Kargo UI. Long lists and strings are trimmed here.
       "url": "http://fake-sentry:8000/organizations/acme/explore/releases/guestbook%401.1.0/?project=4512342186066000"
     }
   ],
+  "org": "acme",
+  "previousCommit": "",
+  "project": "guestbook",
+  "repo": "",
   "version": "guestbook@1.1.0"
 }
 ```
@@ -138,12 +149,19 @@ the same output in the Kargo UI. Long lists and strings are trimmed here.
 
 ```json
 {
+  "commit": "",
   "commits": 0,
   "created": false,
+  "dateReleased": "",
   "deployId": "",
+  "deployName": "test-promotion",
   "environment": "test",
   "error": "creating release: Sentry project does-not-exist not found in organization acme (400)",
   "links": [],
+  "org": "acme",
+  "previousCommit": "",
+  "project": "does-not-exist",
+  "repo": "",
   "version": "guestbook@1.3.0"
 }
 ```

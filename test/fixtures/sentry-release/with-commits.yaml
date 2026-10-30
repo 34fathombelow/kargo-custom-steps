@@ -15,6 +15,9 @@ expect:
   output:
     version: guestbook@1.2.0
     created: true
+    repo: acme/guestbook
+    commit: "2222222"
+    previousCommit: "1111111"
     commits: 3
     deployId: "1347532"
     error: ""
