@@ -1,0 +1,7 @@
+description: a missing image is rejected with a hint to pass it by digest
+config:
+  outPath: ./out/sbom.json
+expect:
+  status: Failed
+  messageContains:
+  - "config.image is required"

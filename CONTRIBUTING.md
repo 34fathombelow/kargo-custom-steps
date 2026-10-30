@@ -92,7 +92,6 @@ Ideas for custom steps that would fit here, by group. Contributions welcome: see
 | policy | `kyverno-apply` `cluster` mode (enhancement) | Evaluate against the Kyverno policies installed in the target cluster, so the gate matches admission exactly |
 | supply-chain | `grype-image` | The `trivy-image` gate with [Grype](https://github.com/anchore/grype) |
 | supply-chain | `extract-images` | List every image in rendered manifests, to scan or verify each one |
-| supply-chain | `sbom-generate` | Write an SBOM ([Syft](https://github.com/anchore/syft)) next to the manifests |
 | supply-chain | `notation-verify` | Verify [Notation](https://notaryproject.dev) signatures |
 | manifest-quality | `kubeconform` | Schema-validate manifests, including CRDs, for the target Kubernetes version |
 | manifest-quality | `kube-linter`, `polaris-audit` | Best-practice linting (resource limits, probes, root containers) with a score or issue count |

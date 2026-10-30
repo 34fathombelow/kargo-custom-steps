@@ -10,6 +10,9 @@
 # slsa-verify (custom step)
 #   slsa-verify-pass       argocd v3.5.6         -> SLSA provenance from argoproj/argo-cd at tag v3.5.6, passes
 #   slsa-verify-blocked    node-exporter v1.9.1  -> no SLSA provenance, blocked
+# sbom-generate (custom step)
+#   sbom-generate-pass     alpine 3.24.2         -> SBOM written, no OpenSSL 1.1.x, passes
+#   sbom-generate-blocked  nginx 1.20.0          -> SBOM written, ships OpenSSL 1.1.x, blocked
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
 metadata:
@@ -177,3 +180,55 @@ spec:
           value: quay.io/prometheus/node-exporter
         - name: sourceUri
           value: github.com/prometheus/node_exporter
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: sbom-generate-pass
+  namespace: custom-steps-supply-chain
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: green
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: images
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: sbom-generate
+        vars:
+        - name: imageRepo
+          value: mirror.gcr.io/library/alpine
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: sbom-generate-blocked
+  namespace: custom-steps-supply-chain
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: red
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: images
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: sbom-generate
+        vars:
+        - name: imageRepo
+          value: mirror.gcr.io/library/nginx

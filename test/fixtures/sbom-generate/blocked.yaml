@@ -1,0 +1,18 @@
+description: an image that still ships OpenSSL 1.1.x matches the deny rule, so the promotion is blocked and the denied packages are listed
+config:
+  image: mirror.gcr.io/library/nginx:1.20.0
+  outPath: ./out/sbom/nginx.spdx.json
+  deny:
+  - name: "^(openssl|libssl)"
+    version: "^1\\.1\\."
+    reason: OpenSSL 1.1.x is end-of-life
+expect:
+  status: Failed
+  messageContains:
+  - "denied: openssl 1.1.1d-0+deb10u6 (deb): OpenSSL 1.1.x is end-of-life"
+  - "2 package(s) match config.deny"
+  output:
+    passed: false
+    deniedCount: 2
+    path: out/sbom/nginx.spdx.json
+    error: "2 package(s) match config.deny: libssl1.1, openssl"

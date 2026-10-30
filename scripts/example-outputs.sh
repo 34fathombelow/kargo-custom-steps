@@ -18,6 +18,7 @@ declare -A runs=(
   [trivy-image]="Passes:pass Blocked:blocked"
   [cosign-verify]="Verified:verified Blocked:unsigned"
   [slsa-verify]="Verified:verified Blocked:wrong-tag"
+  [sbom-generate]="Passes:pass Blocked:blocked"
   [deprecated-apis]="Passes:k8s-1-25-passes Blocked:k8s-1-33-blocked"
   [cluster-version]="Found:01-single-cluster Ambiguous:03-ambiguous"
   [manifest-diff]="Changed:changed-dirs Unchanged:unchanged"

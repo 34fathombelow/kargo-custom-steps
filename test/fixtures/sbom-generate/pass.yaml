@@ -1,0 +1,20 @@
+description: a current image has no package matching the deny rules, so the SBOM is written and the promotion proceeds
+config:
+  image: mirror.gcr.io/library/alpine:3.24.2
+  outPath: ./out/sbom/alpine.spdx.json
+  deny:
+  - name: "^(openssl|libssl)"
+    version: "^1\\.1\\."
+    reason: OpenSSL 1.1.x is end-of-life
+expect:
+  status: Succeeded
+  output:
+    passed: true
+    format: spdx-json
+    path: out/sbom/alpine.spdx.json
+    packages: 16
+    byType: {apk: 16}
+    denied: []
+    deniedCount: 0
+    error: ""
+  outputKeys: [digest, licenses]
