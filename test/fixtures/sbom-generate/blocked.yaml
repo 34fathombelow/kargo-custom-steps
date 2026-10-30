@@ -14,5 +14,8 @@ expect:
   output:
     passed: false
     deniedCount: 2
+    denied:
+    - "libssl1.1 1.1.1d-0+deb10u6 (deb): OpenSSL 1.1.x is end-of-life"
+    - "openssl 1.1.1d-0+deb10u6 (deb): OpenSSL 1.1.x is end-of-life"
     path: out/sbom/nginx.spdx.json
     error: "2 package(s) match config.deny: libssl1.1, openssl"

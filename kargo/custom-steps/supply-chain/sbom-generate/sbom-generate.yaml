@@ -17,7 +17,8 @@
 #               rule sets is denied, and any denied package blocks the promotion
 #
 # Output (JSON): passed, image, digest, format, path, packages, byType, licenses,
-#   denied[{name, version, type, licenses, reason}], deniedCount, truncated, error
+#   packageList["name version (type, license)"], packageListTruncated,
+#   denied["name version (type): reason"], deniedCount, truncated, error
 apiVersion: ee.kargo.akuity.io/v1alpha1
 kind: CustomPromotionStep
 metadata:
@@ -54,7 +55,8 @@ spec:
       echo "sbom-generate: $*" >&2
       jq -n --arg image "$SB_IMAGE" --arg format "$SB_FORMAT" --arg error "$*" \
         '{passed: false, image: $image, digest: "", format: $format, path: "", packages: 0, byType: {},
-          licenses: {}, denied: [], deniedCount: 0, truncated: false, error: $error}' > "$out"
+          licenses: {}, packageList: [], packageListTruncated: false, denied: [], deniedCount: 0,
+          truncated: false, error: $error}' > "$out"
       exit 1
     }
 
@@ -95,17 +97,22 @@ spec:
     fi
     [ -s "$SB_OUT_PATH" ] || fail "syft wrote no SBOM to $SB_OUT_PATH"
 
-    # Summary and deny checks. Only the first 50 denied packages are listed;
-    # the step output is capped at 256 KiB, and the full SBOM is in the file.
+    # Summary and deny checks, one readable line per package. The package list
+    # stops at 500 and the denied list at 50: the step output is capped at
+    # 256 KiB, and the full SBOM is in the file.
     jq --argjson deny "$deny" --arg image "$SB_IMAGE" --arg format "$SB_FORMAT" --arg path "${SB_OUT_PATH#./}" '
+      # Licenses Syft could only identify by a hash of their file ("sha256:...") are left out.
+      def lics: [.licenses[]?.value | select(startswith("sha256:") | not)];
+      def line: "\(.name) \(.version) (\(.type)\(lics | if length > 0 then ", " + join(" OR ") else "" end))";
       def matches($rule):
-        ([.licenses[]?.value] | join(" ")) as $lic
+        (lics | join(" ")) as $lic
         | (($rule.name // "") == "" or (.name | test($rule.name)))
           and (($rule.version // "") == "" or (.version | test($rule.version)))
           and (($rule.license // "") == "" or ($lic | test($rule.license)));
-      [.artifacts[] | . as $p | ($deny | map(select(. as $r | $p | matches($r)))) as $hits
+      ([.artifacts[] | . as $p | ($deny | map(select(. as $r | $p | matches($r)))) as $hits
         | select($hits | length > 0)
-        | {name, version, type, licenses: [.licenses[]?.value], reason: ($hits[0].reason // "denied by config.deny")}] as $denied
+        | "\(.name) \(.version) (\(.type)): \($hits[0].reason // "denied by config.deny")"] | sort) as $denied
+      | ([.artifacts[] | line] | sort) as $all
       | {passed: ($denied | length == 0),
          image: $image,
          digest: (.source.metadata.manifestDigest // ""),
@@ -113,8 +120,10 @@ spec:
          path: $path,
          packages: (.artifacts | length),
          byType: ([.artifacts[].type] | group_by(.) | map({(.[0]): length}) | add // {}),
-         licenses: ([.artifacts[].licenses[]?.value] | group_by(.) | map({key: .[0], value: length})
+         licenses: ([.artifacts[] | lics[]] | group_by(.) | map({key: .[0], value: length})
                     | sort_by(-.value) | .[:10] | from_entries),
+         packageList: $all[:500],
+         packageListTruncated: ($all | length > 500),
          denied: $denied[:50],
          deniedCount: ($denied | length),
          truncated: ($denied | length > 50),
@@ -122,9 +131,9 @@ spec:
 
     jq -r '"SBOM for \(.image): \(.packages) package(s) (\(.byType | to_entries | map("\(.value) \(.key)") | join(", "))), written to \(.path) (\(.format))"' "$out"
     if [ "$(jq -r .passed "$out")" != true ]; then
-      jq -r '.denied[] | "  denied: \(.name) \(.version) (\(.type)): \(.reason)"' "$out" >&2
+      jq -r '.denied[] | "  denied: \(.)"' "$out" >&2
       echo "sbom-generate: $(jq -r .deniedCount "$out") package(s) match config.deny; the SBOM is in $SB_OUT_PATH" >&2
-      jq --arg e "$(jq -r '"\(.deniedCount) package(s) match config.deny: \(.denied | map(.name) | unique | join(", "))"' "$out")" '.error = $e' "$out" > /tmp/o && mv /tmp/o "$out"
+      jq --arg e "$(jq -r '"\(.deniedCount) package(s) match config.deny: \(.denied | map(split(" ")[0]) | unique | join(", "))"' "$out")" '.error = $e' "$out" > /tmp/o && mv /tmp/o "$out"
       exit 1
     fi
   output:

@@ -88,13 +88,16 @@ deny:
 | `packages` | number | Number of packages in the image |
 | `byType` | map | Packages by type, e.g. `{apk: 16}` or `{deb: 135, java-archive: 1}` |
 | `licenses` | map | The 10 most common declared licenses, with their package counts |
-| `denied` | list | `{name, version, type, licenses, reason}` for each denied package (first 50) |
+| `packageList` | list | One line per package, sorted: `name version (type, license)`, e.g. `busybox 1.37.0-r31 (apk, GPL-2.0-only)` (first 500) |
+| `packageListTruncated` | bool | Whether `packageList` was cut at 500 |
+| `denied` | list | One line per denied package: `name version (type): reason` (first 50) |
 | `deniedCount` | number | Number of denied packages |
 | `truncated` | bool | Whether `denied` was cut at 50 |
 | `error` | string | Why the step failed; empty on success |
 
-The full SBOM is in the file, not the output: SBOMs of large images run to megabytes, and step outputs are capped at
-256 KiB.
+The full SBOM is in the file. The output lists the packages so you can search them in the Kargo UI, but stops at 500:
+SBOMs of large images run to megabytes, and step outputs are capped at 256 KiB. Licenses Syft could only identify by a
+hash of their file are left out of the list and the counts.
 
 ## Example
 
@@ -138,6 +141,13 @@ the same output in the Kargo UI. Long lists and strings are trimmed here.
     "MPL-2.0 AND MIT": 1,
     "Zlib": 1
   },
+  "packageList": [
+    "alpine-baselayout 3.7.2-r1 (apk, GPL-2.0-only)",
+    "alpine-baselayout-data 3.7.2-r1 (apk, GPL-2.0-only)",
+    "alpine-keys 2.6-r0 (apk, MIT)",
+    "… 13 more"
+  ],
+  "packageListTruncated": false,
   "packages": 16,
   "passed": true,
   "path": "out/sbom/alpine.spdx.json",
@@ -154,24 +164,8 @@ the same output in the Kargo UI. Long lists and strings are trimmed here.
     "java-archive": 1
   },
   "denied": [
-    {
-      "licenses": [
-        "OpenSSL"
-      ],
-      "name": "libssl1.1",
-      "reason": "OpenSSL 1.1.x is end-of-life",
-      "type": "deb",
-      "version": "1.1.1d-0+deb10u6"
-    },
-    {
-      "licenses": [
-        "OpenSSL"
-      ],
-      "name": "openssl",
-      "reason": "OpenSSL 1.1.x is end-of-life",
-      "type": "deb",
-      "version": "1.1.1d-0+deb10u6"
-    }
+    "libssl1.1 1.1.1d-0+deb10u6 (deb): OpenSSL 1.1.x is end-of-life",
+    "openssl 1.1.1d-0+deb10u6 (deb): OpenSSL 1.1.x is end-of-life"
   ],
   "deniedCount": 2,
   "digest": "sha256:598057a5c482d2fb42092fd6f4ba35ea4cc86c41f5db8bb68d1ab92c4c40db98",
@@ -190,6 +184,13 @@ the same output in the Kargo UI. Long lists and strings are trimmed here.
     "MIT": 16,
     "public-domain": 16
   },
+  "packageList": [
+    "adduser 3.118 (deb)",
+    "apt 1.8.2.3 (deb, GPL-2.0-or-later)",
+    "base-files 10.3+deb10u9 (deb)",
+    "… 133 more"
+  ],
+  "packageListTruncated": false,
   "packages": 136,
   "passed": false,
   "path": "out/sbom/nginx.spdx.json",
@@ -215,7 +216,7 @@ Demo project `custom-steps-supply-chain` ([kargo/projects/supply-chain](../../..
 
 | Stage | Expected |
 |---|---|
-| `sbom-generate-pass` | Promotion succeeds. The `sbom` output reports alpine 3.24.2's 16 packages (`byType: {apk: 16}`) and `passed: true` |
+| `sbom-generate-pass` | Promotion succeeds. The `sbom` output lists alpine 3.24.2's 16 packages in `packageList` (e.g. `libssl3 3.5.8-r0 (apk, Apache-2.0)`) and `passed: true` |
 | `sbom-generate-blocked` | Promotion fails. nginx 1.20.0 still ships OpenSSL 1.1.1d, so `denied` lists `openssl` and `libssl1.1` with the rule's reason. The SBOM is still written |
 
 ## Notes
