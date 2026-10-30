@@ -1,0 +1,9 @@
+description: a missing version is rejected before calling Sentry, with an example of what to pass
+config:
+  authToken: test-token
+  org: acme
+  project: guestbook
+expect:
+  status: Failed
+  messageContains:
+  - "config.version is required, matching the release the app's SDK reports"

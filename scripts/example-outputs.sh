@@ -23,6 +23,7 @@ declare -A runs=(
   [manifest-diff]="Changed:changed-dirs Unchanged:unchanged"
   [release-diff]="Forward:forward Rollback:rollback"
   [argocd-drift-check]="Passes:synced-healthy Blocked:out-of-sync"
+  [sentry-release]="Recorded:new-release Failed:unknown-project"
   [flyway-migrate]="Migrates:01-migrate Rollback:03-rollback"
   [jsonnet-render]="Renders:render-dir"
   [cdk8s-synth]="Renders:render Blocked:type-error"

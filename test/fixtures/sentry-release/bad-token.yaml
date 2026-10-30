@@ -1,0 +1,16 @@
+description: a token Sentry rejects names the secret to check
+config:
+  authToken: bad
+  org: acme
+  project: guestbook
+  version: guestbook@1.3.0
+  url: http://fake-sentry:8000
+docker: ["--network", "runstep-sentry"]
+expect:
+  status: Failed
+  messageContains:
+  - "creating release: Sentry rejected the auth token (401); check the token in the secret"
+  output:
+    created: false
+    deployId: ""
+    links: []

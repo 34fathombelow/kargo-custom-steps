@@ -1,0 +1,16 @@
+description: a project that doesn't exist in the org is named
+config:
+  authToken: test-token
+  org: acme
+  project: does-not-exist
+  version: guestbook@1.3.0
+  url: http://fake-sentry:8000
+docker: ["--network", "runstep-sentry"]
+expect:
+  status: Failed
+  messageContains:
+  - "creating release: Sentry project does-not-exist not found in organization acme (400)"
+  output:
+    created: false
+    deployId: ""
+    links: []

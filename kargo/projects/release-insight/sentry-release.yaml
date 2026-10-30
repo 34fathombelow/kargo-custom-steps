@@ -1,0 +1,26 @@
+# Records each promotion of the guestbook image in Sentry with the sentry-release
+# custom step: release guestbook@<the Freight's tag>, deployed to the Stage's
+# environment. Needs the `sentry` secret (see secrets/README.md).
+#
+# project: the Sentry project; "secret" (the default) takes it from the secret.
+# The blocked Stage sets a project that doesn't exist, to show the error output.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: PromotionTask
+metadata:
+  name: sentry-release
+  namespace: custom-steps-release-insight
+spec:
+  vars:
+  - name: image
+    value: ghcr.io/akuity/guestbook
+  - name: project
+    value: secret
+  steps:
+  - uses: sentry-release
+    as: sentry
+    config:
+      authToken: ${{ secret('sentry').token }}
+      org: ${{ secret('sentry').org }}
+      # Quoted: an unquoted ": " inside the expression would end the YAML key.
+      project: "${{ vars.project == 'secret' ? secret('sentry').project : vars.project }}"
+      version: guestbook@${{ imageFrom(vars.image).Tag }}

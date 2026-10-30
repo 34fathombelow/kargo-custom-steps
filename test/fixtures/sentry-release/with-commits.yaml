@@ -1,0 +1,20 @@
+description: with a repository and the previous and new commits, the release's commits are linked (for suspect commits)
+config:
+  authToken: test-token
+  org: acme
+  project: guestbook
+  version: guestbook@1.2.0
+  environment: prod
+  repo: acme/guestbook
+  from: "1111111"
+  to: "2222222"
+  url: http://fake-sentry:8000
+docker: ["--network", "runstep-sentry"]
+expect:
+  status: Succeeded
+  output:
+    version: guestbook@1.2.0
+    created: true
+    commits: 3
+    deployId: "1347532"
+    error: ""

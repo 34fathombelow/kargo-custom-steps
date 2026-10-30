@@ -1,0 +1,21 @@
+description: the first promotion of a version creates the release and records a deploy to the Stage's environment, with a link to it
+config:
+  authToken: test-token
+  org: acme
+  project: guestbook
+  version: guestbook@1.1.0
+  url: http://fake-sentry:8000
+ctx:
+  stage: staging
+docker: ["--network", "runstep-sentry"]
+expect:
+  status: Succeeded
+  output:
+    version: guestbook@1.1.0
+    environment: staging
+    created: true
+    commits: 0
+    deployId: "190437991"
+    links:
+    - {url: "http://fake-sentry:8000/organizations/acme/explore/releases/guestbook%401.1.0/?project=4512342186066000", label: Release in Sentry}
+    error: ""

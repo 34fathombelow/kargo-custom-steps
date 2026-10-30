@@ -1,0 +1,16 @@
+description: a Sentry URL the promotion pod can't reach is reported as an egress problem
+config:
+  authToken: test-token
+  org: acme
+  project: guestbook
+  version: guestbook@1.3.0
+  url: http://sentry.invalid
+docker: ["--network", "runstep-sentry"]
+expect:
+  status: Failed
+  messageContains:
+  - "could not reach http://sentry.invalid"
+  output:
+    created: false
+    deployId: ""
+    links: []

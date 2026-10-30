@@ -1,0 +1,163 @@
+# CustomPromotionStep: sentry-release
+#
+# Records a promotion in Sentry: creates the release (if it doesn't exist yet),
+# optionally links its commits, finalizes it, and records a deploy to the
+# Stage's environment. Sentry then shows which release each environment runs,
+# deploy markers on its graphs, and (with commits) suspect commits for new issues.
+# Rollbacks are recorded like any other promotion. Not a gate: it fails only when
+# Sentry can't record the release or deploy.
+#
+# Config:
+#   authToken    - Sentry auth token with project:releases (from a Kargo secret) (required)
+#   org          - Sentry organization slug (required)
+#   project      - Sentry project slug (required)
+#   version      - release version, matching the release the app's SDK reports,
+#                  e.g. guestbook@1.5.0 (required)
+#   environment  - deploy environment (default: the Stage name)
+#   repo         - repository name as connected in Sentry, e.g. acme/shop-api;
+#                  with `to`, links the release's commits (optional)
+#   from, to     - commit range: the commit the Stage ran before and the one it
+#                  runs now. Without `from`, Sentry picks the range itself
+#   finalize     - mark the release as released (default true)
+#   url          - Sentry URL (default https://sentry.io; set it for self-hosted Sentry)
+#
+# The deploy is named after the promotion, so a retried promotion replaces its
+# deploy instead of adding a second one.
+#
+# Output (JSON): version, environment, created, commits, deployId, links, error
+apiVersion: ee.kargo.akuity.io/v1alpha1
+kind: CustomPromotionStep
+metadata:
+  name: sentry-release
+spec:
+  image: ghcr.io/34fathombelow/toolbox:1.2.0
+  defaultTimeout: 2m
+  defaultErrorThreshold: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+  env:
+  - name: SR_TOKEN
+    value: ${{ asJSON(config.authToken ?? "") }}
+  - name: SR_ORG
+    value: ${{ quote(config.org ?? "") }}
+  - name: SR_PROJECT
+    value: ${{ quote(config.project ?? "") }}
+  - name: SR_VERSION
+    value: ${{ asJSON(config.version ?? "") }}
+  - name: SR_ENVIRONMENT
+    value: ${{ quote(config.environment ?? ctx.stage) }}
+  - name: SR_REPO
+    value: ${{ quote(config.repo ?? "") }}
+  - name: SR_FROM
+    value: ${{ quote(config.from ?? "") }}
+  - name: SR_TO
+    value: ${{ quote(config.to ?? "") }}
+  - name: SR_FINALIZE
+    value: ${{ quote(string(config.finalize ?? true)) }}
+  - name: SR_URL
+    value: ${{ quote(config.url ?? "https://sentry.io") }}
+  - name: SR_DEPLOY_NAME
+    value: ${{ quote(ctx.promotion) }}
+  command:
+  - bash
+  - -c
+  - |
+    set -euo pipefail
+    trap 'echo "sentry-release: unexpected error on line $LINENO" >&2' ERR
+    out=/tmp/sentry-release.json
+    version="$(jq -j . <<<"$SR_VERSION")"
+    token="$(jq -j . <<<"$SR_TOKEN")"
+    created=false commits=0 deploy_id="" link=""
+    write() {
+      jq -n --arg version "$version" --arg environment "$SR_ENVIRONMENT" --argjson created "$created" \
+        --argjson commits "$commits" --arg deployId "$deploy_id" --arg link "$link" --arg error "$1" '
+        {version: $version, environment: $environment, created: $created, commits: $commits,
+         deployId: $deployId, links: (if $link != "" then [{url: $link, label: "Release in Sentry"}] else [] end),
+         error: $error}' > "$out"
+    }
+    fail() { echo "sentry-release: $*" >&2; write "$*"; exit 1; }
+
+    [ -n "$token" ] || fail "config.authToken is required (a Sentry auth token with project:releases, from a Kargo secret)"
+    [ -n "$SR_ORG" ] || fail "config.org is required (the Sentry organization slug)"
+    [ -n "$SR_PROJECT" ] || fail "config.project is required (the Sentry project slug)"
+    [ -n "$version" ] || fail "config.version is required, matching the release the app's SDK reports (e.g. app@1.5.0)"
+    [ -n "$SR_ENVIRONMENT" ] || fail "config.environment is empty"
+    if [ -n "$SR_REPO" ] && [ -z "$SR_TO" ]; then fail "config.repo is set but config.to (the commit this Stage now runs) is empty"; fi
+    case "$SR_URL" in http://*|https://*) ;; *) fail "config.url must start with http:// or https://, got $SR_URL" ;; esac
+    api="${SR_URL%/}/api/0/organizations/$SR_ORG"
+    v_enc="$(jq -rn --arg v "$version" '$v | @uri')"
+
+    # call METHOD PATH JSON: writes the response to /tmp/sentry-response.json and
+    # prints the HTTP status (000 when Sentry can't be reached). The token goes in
+    # a header file, never on the command line.
+    printf 'Authorization: Bearer %s\n' "$token" > /tmp/sentry-auth
+    call() {
+      : > /tmp/sentry-response.json
+      curl -sS -o /tmp/sentry-response.json -w '%{http_code}' -X "$1" "$api$2" --max-time 30 \
+        -H @/tmp/sentry-auth -H 'Content-Type: application/json' --data "$3" 2>/tmp/sentry-curl.log || true
+    }
+    # explain WHAT STATUS: a readable reason for a failed call.
+    explain() {
+      local body; body="$(jq -c . /tmp/sentry-response.json 2>/dev/null || head -c 300 /tmp/sentry-response.json)"
+      case "$2" in
+        000) echo "$1: could not reach $SR_URL ($(tail -1 /tmp/sentry-curl.log)); the promotion pod needs egress to it" ;;
+        401) echo "$1: Sentry rejected the auth token (401); check the token in the secret" ;;
+        403) echo "$1: the auth token is not allowed to do this (403); it needs the project:releases scope in org $SR_ORG" ;;
+        404) echo "$1: Sentry organization $SR_ORG not found (404)" ;;
+        400) if grep -q 'Invalid project' /tmp/sentry-response.json 2>/dev/null; then
+               echo "$1: Sentry project $SR_PROJECT not found in organization $SR_ORG (400)"
+             elif [ "$1" = "linking commits" ]; then
+               echo "$1: Sentry rejected the commits (400): $body; check that repository $SR_REPO is connected in Sentry (Settings > Integrations), or leave config.repo empty"
+             else
+               echo "$1: Sentry rejected the request (400): $body"
+             fi ;;
+        *) echo "$1: Sentry returned HTTP $2: $body" ;;
+      esac
+    }
+
+    # 1. Create the release. Sentry answers 201 when it is new and 200/208 when it exists.
+    status="$(call POST /releases/ "$(jq -cn --arg v "$version" --arg p "$SR_PROJECT" '{version: $v, projects: [$p]}')")"
+    case "$status" in
+      201) created=true ;;
+      200|208) created=false ;;
+      *) fail "$(explain "creating release" "$status")" ;;
+    esac
+    project_id="$(jq -r --arg p "$SR_PROJECT" '[.projects[]? | select(.slug == $p) | .id][0] // empty' /tmp/sentry-response.json)"
+    case "$SR_URL" in
+      https://sentry.io|https://sentry.io/) link="https://$SR_ORG.sentry.io/explore/releases/$v_enc/" ;;
+      *) link="${SR_URL%/}/organizations/$SR_ORG/explore/releases/$v_enc/" ;;
+    esac
+    [ -z "$project_id" ] || link="$link?project=$project_id"
+
+    # 2. Link commits (optional).
+    if [ -n "$SR_REPO" ]; then
+      refs="$(jq -cn --arg r "$SR_REPO" --arg f "$SR_FROM" --arg t "$SR_TO" '
+        {refs: [{repository: $r, commit: $t} + (if $f != "" then {previousCommit: $f} else {} end)]}')"
+      status="$(call PUT "/releases/$v_enc/" "$refs")"
+      [ "$status" = 200 ] || fail "$(explain "linking commits" "$status")"
+      commits="$(jq '.commitCount // 0' /tmp/sentry-response.json)"
+    fi
+
+    # 3. Finalize.
+    if [ "$SR_FINALIZE" = "true" ]; then
+      status="$(call PUT "/releases/$v_enc/" "$(jq -cn --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{dateReleased: $now}')")"
+      [ "$status" = 200 ] || fail "$(explain "finalizing release" "$status")"
+      commits="$(jq '.commitCount // 0' /tmp/sentry-response.json)"
+    fi
+
+    # 4. Record the deploy. Sentry replaces a deploy with the same name and
+    # environment, so a retried promotion doesn't add a second one.
+    status="$(call POST "/releases/$v_enc/deploys/" "$(jq -cn --arg e "$SR_ENVIRONMENT" --arg n "$SR_DEPLOY_NAME" '{environment: $e, name: $n}')")"
+    case "$status" in 200|201) ;; *) fail "$(explain "recording deploy" "$status")" ;; esac
+    deploy_id="$(jq -r '.id // ""' /tmp/sentry-response.json)"
+
+    write ""
+    echo "Release $version ($( [ "$created" = true ] && echo new || echo existing ), $commits commit(s)) deployed to $SR_ENVIRONMENT: $link"
+  output:
+    source:
+      type: File
+      path: /tmp/sentry-release.json
