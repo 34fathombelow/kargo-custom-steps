@@ -1,0 +1,15 @@
+description: a Go compile error blocks the promotion and is surfaced as the reason
+config:
+  path: ./src/go-broken
+  outPath: ./out
+files:
+  src: demo-fixtures/cdk8s-synth
+expect:
+  status: Failed
+  messageContains:
+  - "cdk8s synth failed in ./src/go-broken: main.go:"
+  - "cannot use \"three\" (untyped string constant) as *float64 value"
+  output:
+    language: go
+    count: 0
+    resources: []

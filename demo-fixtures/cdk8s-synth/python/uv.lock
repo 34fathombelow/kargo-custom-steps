@@ -1,0 +1,142 @@
+version = 1
+revision = 5
+requires-python = ">=3.11"
+
+[[package]]
+name = "attrs"
+version = "26.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/9a/8e/82a0fe20a541c03148528be8cac2408564a6c9a0cc7e9171802bc1d26985/attrs-26.1.0.tar.gz", hash = "sha256:d03ceb89cb322a8fd706d4fb91940737b6642aa36998fe130a9bc96c985eff32", size = 952055, upload-time = "2026-03-19T14:22:25.026Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/64/b4/17d4b0b2a2dc85a6df63d1157e028ed19f90d4cd97c36717afef2bc2f395/attrs-26.1.0-py3-none-any.whl", hash = "sha256:c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309", size = 67548, upload-time = "2026-03-19T14:22:23.645Z" },
+]
+
+[[package]]
+name = "cattrs"
+version = "26.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "attrs" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/23/75/e72b839c3dc869c990b4842f3dba730bdcdf5215f68fc7955edf849a1792/cattrs-26.2.1.tar.gz", hash = "sha256:679132bfdc225c5ee40c024fc42519954767c387f950dc6751946c586bccdc6d", size = 525617, upload-time = "2026-09-26T20:53:21.114Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e8/cf/22794a399d99480486120e26e879ef008e21f5e85274c2ed591d568bb326/cattrs-26.2.1-py3-none-any.whl", hash = "sha256:a12aaa3453dc8f633a815293179f08b7421ed18d2575c459c3c736f840beac24", size = 74843, upload-time = "2026-09-26T20:53:19.767Z" },
+]
+
+[[package]]
+name = "cdk8s"
+version = "2.70.117"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "constructs" },
+    { name = "jsii" },
+    { name = "publication" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f7/09/494cff03fa2dfe45e430fbb3942eb659ac3591e72143e22d43ed01da0646/cdk8s-2.70.117.tar.gz", hash = "sha256:f44d752ca8b246fb9ecd3e062f41e6d4a4ef5844fc8241475ea1380236568a28", size = 388885, upload-time = "2026-10-29T12:16:16.305Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/27/d9/fc0b1f1da16d5da7054b549b6b953ee64c7547c1c36665e27944c03ae04a/cdk8s-2.70.117-py3-none-any.whl", hash = "sha256:c27096aadca46938441d3bd294a6fb10092a51d1de4de9ee855b213ce3433b5f", size = 386466, upload-time = "2026-10-29T12:16:13.981Z" },
+]
+
+[[package]]
+name = "cdk8s-synth-demo"
+version = "1.0.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "cdk8s" },
+    { name = "constructs" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cdk8s", specifier = "~=2.70.117" },
+    { name = "constructs", specifier = "~=10.8.1" },
+]
+
+[[package]]
+name = "constructs"
+version = "10.8.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "jsii" },
+    { name = "publication" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d1/7e/5caadda94765496d4096528bcc432ae256ade10cf4b847e88a5d09918c1d/constructs-10.8.1.tar.gz", hash = "sha256:9f6e4eb1f6b8b1ac8dcbc85457dcbb1e3f9bd93bbeef03154f6cc7fbbba74b06", size = 788838, upload-time = "2026-08-03T15:28:03.745Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2d/df/3afc4e2c4c6bdf58bfe27d7e082f82f3364562592613c159209ed50ddd16/constructs-10.8.1-py3-none-any.whl", hash = "sha256:f71297db64723889147c82de46dcacaa76b120f856d5b5ac5f65abb22ea88355", size = 787025, upload-time = "2026-08-03T15:28:02.082Z" },
+]
+
+[[package]]
+name = "jsii"
+version = "1.142.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "attrs" },
+    { name = "cattrs" },
+    { name = "publication" },
+    { name = "python-dateutil" },
+    { name = "typeguard" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/33/c3/0a0165c7258dce26244e32469f13bdbada8bbda2eb2924c9318140ef9731/jsii-1.142.0.tar.gz", hash = "sha256:2fe1c5f2a5a405a5fbaaafb8b362cdf6a30171589e508c01682f33c5d529172f", size = 523956, upload-time = "2026-10-20T08:47:29.207Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/16/98/36c81719866db47c7b049d2ea4a180bcbdabf84919bc1d94d1f927f9f00d/jsii-1.142.0-py3-none-any.whl", hash = "sha256:16d6b3e25bbaa081dd39eabe910b07f646fe4988302d8aae401690f247baf7df", size = 506963, upload-time = "2026-10-20T08:47:27.512Z" },
+]
+
+[[package]]
+name = "publication"
+version = "0.0.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/6b/8e/8c9fe7e32fdf9c386f83d59610cc819a25dadb874b5920f2d0ef7d35f46d/publication-0.0.3.tar.gz", hash = "sha256:68416a0de76dddcdd2930d1c8ef853a743cc96c82416c4e4d3b5d901c6276dc4", size = 5484, upload-time = "2019-01-15T07:52:23.914Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f8/d3/6308debad7afcdb3ea5f50b4b3d852f41eb566a311fbcb4da23755a28155/publication-0.0.3-py2.py3-none-any.whl", hash = "sha256:0248885351febc11d8a1098d5c8e3ab2dabcf3e8c0c96db1e17ecd12b53afbe6", size = 7687, upload-time = "2019-01-15T07:52:22.151Z" },
+]
+
+[[package]]
+name = "python-dateutil"
+version = "3.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "six" },
+    { name = "tzdata" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0e/df/f15f80383f152452d8985b36d95cb8751f901a3e0ff4cd27f7e118f168e2/python_dateutil-3.0.0.tar.gz", hash = "sha256:7ebcb3c29a92f3ceafe79a7a48a5c45677e9e004bbeec5742ac0bbb00560b7a2", size = 271066, upload-time = "2026-10-21T23:41:45.075Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5a/17/cebee01d1c0c1441174cf0456ddc91b280d79acb65340c05e41d77866ee8/python_dateutil-3.0.0-py2.py3-none-any.whl", hash = "sha256:3c79630202e4152c6add678446984236efe4f57e84d8e892aab0637bab82e9fd", size = 94659, upload-time = "2026-10-21T23:41:43.431Z" },
+]
+
+[[package]]
+name = "six"
+version = "1.17.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031, upload-time = "2024-12-04T17:35:28.174Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
+]
+
+[[package]]
+name = "typeguard"
+version = "2.13.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3a/38/c61bfcf62a7b572b5e9363a802ff92559cb427ee963048e1442e3aef7490/typeguard-2.13.3.tar.gz", hash = "sha256:00edaa8da3a133674796cf5ea87d9f4b4c367d77476e185e80251cc13dfbb8c4", size = 40604, upload-time = "2021-12-10T21:09:39.158Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9a/bb/d43e5c75054e53efce310e79d63df0ac3f25e34c926be5dffb7d283fb2a8/typeguard-2.13.3-py3-none-any.whl", hash = "sha256:5e3e3be01e887e7eafae5af63d1f36c849aaa94e3a0112097312aabfa16284f1", size = 17605, upload-time = "2021-12-10T21:09:37.844Z" },
+]
+
+[[package]]
+name = "typing-extensions"
+version = "4.16.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f6/cc/6253133b5bb138fc3306cebfbda2c520f545d36b5be2c7255cc528bb45d6/typing_extensions-4.16.0.tar.gz", hash = "sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5", size = 113555, upload-time = "2026-07-02T08:40:05.92Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl", hash = "sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8", size = 45571, upload-time = "2026-07-02T08:40:04.659Z" },
+]
+
+[[package]]
+name = "tzdata"
+version = "2026.6"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7a/29/6a1391d31cd00ff9e927215a224a880e1e84e826b64ba80a499e51c074d8/tzdata-2026.6.tar.gz", hash = "sha256:85d2cd9c09f81f0bb29db27759fc83af4f1e620efb814f8c5bf8b4cc4feece6d", size = 201017, upload-time = "2026-10-28T09:57:09.137Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0a/66/9a06c2227fedfd4919f0eaaa8b94377d9730882a7e4f95823c9a331ab5e1/tzdata-2026.6-py2.py3-none-any.whl", hash = "sha256:0a10eec6e13ef16b627fabed9a5f2ba61a62b1c67f327305f4e7e412a70b4aec", size = 348210, upload-time = "2026-10-28T09:57:07.276Z" },
+]

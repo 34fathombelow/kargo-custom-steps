@@ -1,0 +1,10 @@
+description: an outPath outside the workdir is refused, since the step replaces it
+config:
+  path: ./src/typescript
+  outPath: ../out
+files:
+  src: demo-fixtures/cdk8s-synth
+expect:
+  status: Failed
+  messageContains:
+  - "config.outPath must be a directory inside the workdir, got ../out"

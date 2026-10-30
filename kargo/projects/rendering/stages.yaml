@@ -2,6 +2,13 @@
 #   jsonnet-render-pass  jsonnet-render (custom step) renders the guestbook app
 #                        with the Freight's image tag -> passes; see the `render`
 #                        and `rendered` outputs
+#   cdk8s-synth-pass, cdk8s-synth-python-pass, cdk8s-synth-go-pass
+#                        cdk8s-synth* (custom steps) render the guestbook cdk8s
+#                        app in TypeScript, Python and Go with the Freight's image
+#                        -> passes; see the `render` and `rendered` outputs
+#   cdk8s-synth-blocked, cdk8s-synth-python-blocked, cdk8s-synth-go-blocked
+#                        the same apps with a type error -> blocked; the `render`
+#                        output's `error` names it
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
 metadata:
@@ -24,3 +31,150 @@ spec:
       steps:
       - task:
           name: jsonnet-render
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: cdk8s-synth-pass
+  namespace: custom-steps-rendering
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: green
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: guestbook
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: cdk8s-synth
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: cdk8s-synth-blocked
+  namespace: custom-steps-rendering
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: red
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: guestbook
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: cdk8s-synth
+        vars:
+        - name: appPath
+          value: ./src/demo-fixtures/cdk8s-synth/typescript-broken
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: cdk8s-synth-python-pass
+  namespace: custom-steps-rendering
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: green
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: guestbook
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: cdk8s-synth-python
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: cdk8s-synth-python-blocked
+  namespace: custom-steps-rendering
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: red
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: guestbook
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: cdk8s-synth-python
+        vars:
+        - name: appPath
+          value: ./src/demo-fixtures/cdk8s-synth/python-broken
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: cdk8s-synth-go-pass
+  namespace: custom-steps-rendering
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: green
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: guestbook
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: cdk8s-synth-go
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: cdk8s-synth-go-blocked
+  namespace: custom-steps-rendering
+  labels:
+    kargo.akuity.io/shard: custom-steps
+  annotations:
+    kargo.akuity.io/color: red
+spec:
+  shard: custom-steps
+  requestedFreight:
+  - origin:
+      kind: Warehouse
+      name: guestbook
+    sources:
+      direct: true
+  promotionTemplate:
+    spec:
+      steps:
+      - task:
+          name: cdk8s-synth-go
+        vars:
+        - name: appPath
+          value: ./src/demo-fixtures/cdk8s-synth/go-broken

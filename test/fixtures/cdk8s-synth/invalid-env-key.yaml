@@ -1,0 +1,12 @@
+description: an env key that is not a valid variable name is reported
+config:
+  path: ./src/typescript
+  outPath: ./out
+  env:
+    "bad key": x
+files:
+  src: demo-fixtures/cdk8s-synth
+expect:
+  status: Failed
+  messageContains:
+  - "config.env key 'bad key' is not a valid environment variable name"

@@ -103,7 +103,6 @@ Ideas for custom steps that would fit here, by group. Contributions welcome: see
 | data | `atlas-lint` | Flag destructive schema changes before they ship ([Atlas](https://atlasgo.io)) |
 | data | `liquibase-update` | `flyway-migrate` for Liquibase changelogs |
 | rendering | `kcl-render`, `cue-export`, `timoni-build` | Render manifests with [KCL](https://www.kcl-lang.io), [CUE](https://cuelang.org) or [Timoni](https://timoni.sh) |
-| rendering | `cdk8s-synth` | Synthesize manifests from a [cdk8s](https://cdk8s.io) app (TypeScript, Python, Go or Java) |
 | rendering | `helmfile-template` | Render a [Helmfile](https://helmfile.readthedocs.io) (several releases and environments) with `helmfile template` |
 | rendering | `envsubst-render` | Render templates with [gomplate](https://gomplate.ca) or `envsubst` |
 | rendering | `sops-decrypt` | Decrypt [SOPS](https://getsops.io) files (age or KMS) during rendering |

@@ -105,6 +105,11 @@ Learned the hard way while building these steps:
 - **Trivy:** with Java DB updates skipped and no Java DB present, it aborts on any image with Java artifacts. It fetches
   the Java DB only for images that contain JARs. It doesn't fall back from `mirror.gcr.io` to `ghcr.io` on every mirror
   error, so retry there explicitly.
+- **cdk8s:** every language binding (Python, Go) needs Node.js at run time (jsii), which prints an "untested Node
+  version" banner unless `JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION` is set. `cdk8s init python-app` uses uv and
+  installs `cdk8s` outside the project, so its `pyproject.toml` lacks `cdk8s`; add it and run `uv lock`. Go's generated
+  `imports/` takes the module path from the directory name. Generated `imports/` quote upstream API docs that mention
+  `kubectl get`, so `make lint` skips an `imports/` next to a `cdk8s.yaml`.
 - **Alpine/BusyBox:** `date` can't parse RFC 3339 (add `coreutils`), and some flags are missing. Use portable flags.
 - **`set -o pipefail` with `head -1` or a non-matching `grep`** can kill a script with no message. Add `|| true` to
   best-effort pipelines, and start scripts with `trap 'echo "<step>: unexpected error on line $LINENO" >&2' ERR`.

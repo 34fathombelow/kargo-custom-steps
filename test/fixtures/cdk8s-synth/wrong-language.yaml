@@ -1,0 +1,12 @@
+description: a python app is pointed at the step for its language
+config:
+  path: ./src/python
+  outPath: ./out
+files:
+  src: demo-fixtures/cdk8s-synth
+expect:
+  status: Failed
+  messageContains:
+  - "./src/python is a python cdk8s app; use the cdk8s-synth-python step"
+  output:
+    language: python

@@ -1,0 +1,12 @@
+description: a typescript app is pointed at the step for its language
+config:
+  path: ./src/typescript
+  outPath: ./out
+files:
+  src: demo-fixtures/cdk8s-synth
+expect:
+  status: Failed
+  messageContains:
+  - "./src/typescript is a typescript cdk8s app; use the cdk8s-synth step"
+  output:
+    language: typescript

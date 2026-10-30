@@ -1,0 +1,20 @@
+description: renders the Go demo app with per-Stage settings from env
+config:
+  path: ./src/go
+  outPath: ./out
+  env:
+    ENVIRONMENT: prod
+    IMAGE: ghcr.io/akuity/guestbook:v0.0.1
+files:
+  src: demo-fixtures/cdk8s-synth
+expect:
+  status: Succeeded
+  output:
+    language: go
+    outPath: ./out
+    count: 2
+    files: [out/guestbook.k8s.yaml]
+    resources:
+    - {kind: Deployment, name: guestbook-ui, namespace: ""}
+    - {kind: Service, name: guestbook-ui, namespace: ""}
+    error: ""

@@ -1,0 +1,12 @@
+description: a cdk8s app in a language the image has no toolchain for is rejected with the supported list
+config:
+  path: ./src
+  outPath: ./out
+files:
+  src: test/fixtures/cdk8s-synth/java-app
+expect:
+  status: Failed
+  messageContains:
+  - "language java (from ./src/cdk8s.yaml) is not supported; the cdk8s-synth steps support typescript, python and go"
+  output:
+    language: java
