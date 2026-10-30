@@ -1,0 +1,13 @@
+description: a deny rule can match licenses too (here GPL-2.0-only, which busybox and others declare)
+config:
+  image: mirror.gcr.io/library/alpine:3.24.2
+  outPath: ./out/sbom.spdx.json
+  deny:
+  - license: "GPL-2\\.0-only"
+    reason: GPL-2.0-only code is not allowed in this product
+expect:
+  status: Failed
+  messageContains:
+  - "GPL-2.0-only code is not allowed in this product"
+  output:
+    passed: false

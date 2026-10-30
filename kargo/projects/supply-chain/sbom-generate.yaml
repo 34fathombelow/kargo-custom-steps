@@ -1,0 +1,22 @@
+# Writes an SBOM for one image from the Freight with the sbom-generate custom
+# step, and blocks the promotion if the image still ships OpenSSL 1.1.x, which
+# is end-of-life. The image is pinned by digest (imageFrom().Digest), so the SBOM
+# describes exactly the bytes Kargo discovered.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: PromotionTask
+metadata:
+  name: sbom-generate
+  namespace: custom-steps-supply-chain
+spec:
+  vars:
+  - name: imageRepo
+  steps:
+  - uses: sbom-generate
+    as: sbom
+    config:
+      image: ${{ imageFrom(vars.imageRepo).RepoURL + "@" + imageFrom(vars.imageRepo).Digest }}
+      outPath: ./out/sbom/sbom.spdx.json
+      deny:
+      - name: "^(openssl|libssl)"
+        version: "^1\\.1\\."
+        reason: OpenSSL 1.1.x is end-of-life

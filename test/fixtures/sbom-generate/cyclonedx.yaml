@@ -1,0 +1,12 @@
+description: writes a CycloneDX SBOM instead of SPDX, without deny rules
+config:
+  image: mirror.gcr.io/library/alpine:3.24.2
+  outPath: ./out/alpine.cdx.json
+  format: cyclonedx-json
+expect:
+  status: Succeeded
+  output:
+    passed: true
+    format: cyclonedx-json
+    path: out/alpine.cdx.json
+    packages: 16

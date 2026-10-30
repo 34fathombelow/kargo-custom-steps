@@ -110,6 +110,10 @@ Learned the hard way while building these steps:
   installs `cdk8s` outside the project, so its `pyproject.toml` lacks `cdk8s`; add it and run `uv lock`. Go's generated
   `imports/` takes the module path from the directory name. Generated `imports/` quote upstream API docs that mention
   `kubectl get`, so `make lint` skips an `imports/` next to a `cdk8s.yaml`.
+- **Syft:** `-q` also hides its error messages; without it, a failed pull logs the registry's answer on an
+  `oci-registry:` line. SPDX output has one extra package for the image itself, so count `syft-json`'s `.artifacts`.
+  In SPDX, `licenseConcluded` is `NOASSERTION`; the licenses are in `licenseDeclared` (`.licenses[].value` in
+  syft-json). `registry:<image>` pulls straight from the registry, with no Docker daemon.
 - **Alpine/BusyBox:** `date` can't parse RFC 3339 (add `coreutils`), and some flags are missing. Use portable flags.
 - **`set -o pipefail` with `head -1` or a non-matching `grep`** can kill a script with no message. Add `|| true` to
   best-effort pipelines, and start scripts with `trap 'echo "<step>: unexpected error on line $LINENO" >&2' ERR`.

@@ -1,0 +1,10 @@
+description: an image that doesn't exist is reported with what to check
+config:
+  image: mirror.gcr.io/library/alpine:0.0.0-does-not-exist
+  outPath: ./out/sbom.spdx.json
+expect:
+  status: Failed
+  messageContains:
+  - "could not generate an SBOM for mirror.gcr.io/library/alpine:0.0.0-does-not-exist"
+  - "MANIFEST_UNKNOWN"
+  - "check the image name, tag or digest"

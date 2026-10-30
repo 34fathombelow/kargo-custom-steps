@@ -1,0 +1,9 @@
+description: an unknown SBOM format is rejected before pulling anything
+config:
+  image: mirror.gcr.io/library/alpine:3.24.2
+  outPath: ./out/sbom.json
+  format: spdx-xml
+expect:
+  status: Failed
+  messageContains:
+  - "config.format must be spdx-json, cyclonedx-json or syft-json, got spdx-xml"

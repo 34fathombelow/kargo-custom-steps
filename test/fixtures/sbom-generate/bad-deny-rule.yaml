@@ -1,0 +1,10 @@
+description: a deny rule with an invalid regular expression is rejected before pulling anything
+config:
+  image: mirror.gcr.io/library/alpine:3.24.2
+  outPath: ./out/sbom.json
+  deny:
+  - name: "openssl("
+expect:
+  status: Failed
+  messageContains:
+  - "config.deny rule 1: name is not a valid regular expression: openssl("

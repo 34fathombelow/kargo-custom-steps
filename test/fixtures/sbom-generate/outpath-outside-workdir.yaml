@@ -1,0 +1,8 @@
+description: an outPath outside the workdir is refused
+config:
+  image: mirror.gcr.io/library/alpine:3.24.2
+  outPath: ../sbom.json
+expect:
+  status: Failed
+  messageContains:
+  - "config.outPath must be a file inside the workdir, got ../sbom.json"
